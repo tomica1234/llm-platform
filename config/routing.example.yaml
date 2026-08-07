@@ -1,0 +1,31 @@
+modes:
+  fast:
+    quality_weight: 0.7
+    latency_weight: 1.5
+    wait_weight: 1.5
+    switch_weight: 1.3
+    resource_weight: 0.4
+    loaded_bonus: 0.3
+    batching_bonus: 0.2
+    continuity_bonus: 0.1
+    diversity_bonus: 0.05
+  balanced:
+    quality_weight: 1.0
+    latency_weight: 1.0
+    wait_weight: 1.0
+    switch_weight: 1.0
+    resource_weight: 0.25
+    loaded_bonus: 0.2
+    batching_bonus: 0.15
+    continuity_bonus: 0.1
+    diversity_bonus: 0.1
+  quality:
+    quality_weight: 1.6
+    latency_weight: 0.6
+    wait_weight: 0.5
+    switch_weight: 0.5
+    resource_weight: 0.1
+    loaded_bonus: 0.1
+    batching_bonus: 0.1
+    continuity_bonus: 0.05
+    diversity_bonus: 0.2

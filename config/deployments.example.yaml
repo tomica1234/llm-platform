@@ -1,0 +1,52 @@
+deployments:
+  - deployment_id: dvf-llama-2gpu
+    model_id: dvf
+    runtime: llama_cpp
+    artifact: /srv/models/gguf/dvf/benchmark-required/model.gguf
+    executable: /opt/llm-platform/runtimes/llama.cpp/current/llama-server
+    runtime_version: benchmark-required
+    resources: {gpus: 2, cpus: 16, ram_gb: 96, vram_gb: 48}
+    serving: {concurrency: 1, context_limit: 32768, host: 127.0.0.1, port: 8101}
+    launch_args: ["--parallel", "1", "--metrics"]
+    environment: {}
+    capabilities:
+      max_context: 32768
+      tool_calling: true
+      structured_output: true
+      multimodal: false
+    benchmark: null
+    enabled: false
+  - deployment_id: dvf-llama-3gpu-shared
+    model_id: dvf
+    runtime: llama_cpp
+    artifact: /srv/models/gguf/dvf/benchmark-required/model.gguf
+    executable: /opt/llm-platform/runtimes/llama.cpp/current/llama-server
+    runtime_version: benchmark-required
+    resources: {gpus: 3, cpus: 20, ram_gb: 96, vram_gb: 72}
+    serving: {concurrency: 3, context_limit: 32768, host: 127.0.0.1, port: 8102}
+    launch_args: ["--parallel", "3", "--metrics"]
+    environment: {}
+    capabilities:
+      max_context: 32768
+      tool_calling: true
+      structured_output: true
+      multimodal: false
+    benchmark: null
+    enabled: false
+  - deployment_id: qwen-vllm-1gpu
+    model_id: qwen-main
+    runtime: vllm
+    artifact: /srv/models/hf/qwen-main/benchmark-required
+    executable: /opt/llm-platform/runtimes/vllm/current/bin/vllm
+    runtime_version: benchmark-required
+    resources: {gpus: 1, cpus: 8, ram_gb: 24, vram_gb: 24}
+    serving: {concurrency: 2, context_limit: 32768, host: 127.0.0.1, port: 8201}
+    launch_args: ["--gpu-memory-utilization", "0.90"]
+    environment: {}
+    capabilities:
+      max_context: 32768
+      tool_calling: true
+      structured_output: true
+      multimodal: false
+    benchmark: null
+    enabled: false

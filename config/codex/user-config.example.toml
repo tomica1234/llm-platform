@@ -1,0 +1,10 @@
+# Merge this into the user's ~/.codex/config.toml. Do not place it in a repository's
+# .codex/config.toml and do not put the key value in this file.
+model = "auto"
+model_provider = "local_llm_platform"
+
+[model_providers.local_llm_platform]
+name = "Local LLM Platform"
+base_url = "http://127.0.0.1:8000/v1"
+env_key = "LOCAL_LLM_GATEWAY_API_KEY"
+wire_api = "responses"

@@ -1,0 +1,27 @@
+[Unit]
+Description=Local LLM Platform Gateway and Control Plane
+After=network-online.target postgresql.service munge.service slurmctld.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=svc-control
+Group=svc-control
+EnvironmentFile=/etc/llm-platform/secrets.env
+EnvironmentFile=/etc/llm-platform/gateway.env
+ExecStart=/opt/llm-platform/gateway/current/bin/llm-platform --config /etc/llm-platform
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/srv/models
+ReadWritePaths=/var/lib/llm-platform /var/log/llm-platform
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

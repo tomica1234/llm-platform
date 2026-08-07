@@ -1,0 +1,9 @@
+# REVIEW AND MERGE; do not copy blindly. Node values are inventory-specific.
+SelectType=select/cons_tres
+SelectTypeParameters=CR_Core_Memory
+GresTypes=gpu
+ProctrackType=proctrack/cgroup
+TaskPlugin=task/cgroup,task/affinity
+JobAcctGatherType=jobacct_gather/cgroup
+# NodeName=GPU_HOST CPUs=INVENTORY RealMemory=SAFE_BUDGET Gres=gpu:INVENTORY
+# PartitionName=gpu Nodes=GPU_HOST Default=YES MaxTime=INFINITE State=UP

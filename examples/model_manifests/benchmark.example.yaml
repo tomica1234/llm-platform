@@ -1,0 +1,14 @@
+schema_version: 1
+deployment_id: qwen-vllm-1gpu
+hardware_revision: REPLACE_AFTER_INVENTORY
+runtime_revision: REPLACE_AFTER_INSTALL
+measured_at: null
+startup_seconds: null
+prompt_tps: null
+generation_tps: null
+concurrent_tps: null
+max_vram_gb: null
+max_ram_gb: null
+quality_metrics: {}
+passed: false
+reviewed_by: null

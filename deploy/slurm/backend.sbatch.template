@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Render only through the validated Slurm adapter.
+#SBATCH --job-name=llm-DEPLOYMENT_ID
+#SBATCH --comment=INSTANCE_ID
+#SBATCH --qos=agent-service
+#SBATCH --gres=gpu:GPU_COUNT
+#SBATCH --cpus-per-task=CPU_COUNT
+#SBATCH --mem=RAM_GB
+set -euo pipefail
+exec /opt/llm-platform/gateway/current/bin/llm-backend \
+  --instance INSTANCE_ID --deployment DEPLOYMENT_ID

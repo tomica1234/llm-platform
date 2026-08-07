@@ -1,0 +1,29 @@
+models:
+  - model_id: dvf
+    display_name: DeepSeek V4 Flash (example only)
+    family: deepseek
+    revision: benchmark-required
+    license: review-required
+    capabilities:
+      max_context: 32768
+      tool_calling: true
+      structured_output: true
+      multimodal: false
+    quality_score: 0.9
+    tags: [design, review, coding]
+    known_constraints: [artifact and runtime compatibility require validation]
+    enabled: false
+  - model_id: qwen-main
+    display_name: Qwen 3.6 27B (example only)
+    family: qwen
+    revision: benchmark-required
+    license: review-required
+    capabilities:
+      max_context: 32768
+      tool_calling: true
+      structured_output: true
+      multimodal: false
+    quality_score: 0.75
+    tags: [coding, fast]
+    known_constraints: [artifact and runtime compatibility require validation]
+    enabled: false

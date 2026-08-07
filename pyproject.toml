@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "local-llm-platform"
+version = "0.1.0"
+description = "OpenAI-compatible gateway and GPU control plane for coding agents"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "UNLICENSED" }
+dependencies = [
+  "alembic>=1.14,<2",
+  "aiosqlite>=0.20,<1",
+  "fastapi>=0.115,<1",
+  "httpx>=0.27,<1",
+  "prometheus-client>=0.21,<1",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+  "PyYAML>=6.0,<7",
+  "sqlalchemy[asyncio]>=2.0,<3",
+  "typer>=0.15,<1",
+  "uvicorn>=0.34,<1",
+]
+
+[project.optional-dependencies]
+postgres = ["asyncpg>=0.30,<1"]
+dev = [
+  "coverage[toml]>=7.6,<8",
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "pytest-cov>=6,<7",
+  "ruff>=0.9,<1",
+  "types-PyYAML>=6.0,<7",
+]
+
+[project.scripts]
+llm-platform = "llm_platform.gateway.main:run"
+llm-backend = "llm_platform.runtimes.backend_main:run_backend"
+llmctl = "llm_platform.admin_cli.main:app"
+agent = "llm_platform.agent_harness.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_platform"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S104", "S105", "S106", "S108"]
+"src/llm_platform/admin_cli/main.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["llm_platform"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+  "integration: uses multiple in-process components",
+  "security: exercises security boundaries",
+  "hardware: requires real GPU, Slurm, or runtime binaries",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["llm_platform"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+omit = ["src/llm_platform/persistence/migrations/*"]

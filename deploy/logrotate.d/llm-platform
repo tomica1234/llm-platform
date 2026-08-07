@@ -1,0 +1,10 @@
+/var/log/llm-platform/*.log /var/log/llm-platform/backends/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 svc-control svc-control
+    sharedscripts
+}

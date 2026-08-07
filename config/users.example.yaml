@@ -1,0 +1,9 @@
+users:
+  - username: alice
+    display_name: Example user
+    status: disabled
+    scopes: [inference]
+    model_permissions: [dvf, qwen-main]
+    max_concurrency: 1
+    daily_token_limit: 0
+# API key hashes are provisioned separately and must never be committed here.
