@@ -116,6 +116,16 @@ Commands actually run in this workspace for the 2026-08-11 change are below.
 Hardware tests are guarded and were not run in this unprivileged workspace; no new
 real-GPU claim is made from this test run.
 
+- API-key provisioning FK-order fix — PASS: 2 focused integration tests use a
+  file-backed SQLite database with foreign-key enforcement enabled. They cover an
+  empty users table, a second key for an existing user, authentication of both
+  returned plaintext keys against their persisted hashes, and rollback after a
+  forced key uniqueness failure following the user flush (no partial user or key).
+  Repository-wide Ruff format/check, strict mypy (80 checked files), and
+  `git diff --check` PASS. `make check` repeated the Ruff and source-mypy passes,
+  then reproduced the documented `aiosqlite`/Python 3.14 stall after the first three
+  authentication tests and was interrupted after no further output; no full-suite
+  or aggregate-coverage PASS is claimed.
 - Production console entry-point fix — PASS: 5 focused tests resolve all three
   declarations from `pyproject.toml`, verify `--help` exits successfully without
   loading Gateway configuration, starting Uvicorn, or listening on a submit socket,

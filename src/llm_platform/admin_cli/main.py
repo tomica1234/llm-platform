@@ -88,6 +88,7 @@ async def provision_key(config_dir: Path, username: str) -> str:
                     model_permissions=sorted(configured.model_permissions),
                 )
                 session.add(row)
+                await session.flush()
             key_row = ApiKeyRow(
                 id=f"key-{uuid.uuid4().hex}",
                 user_id=username,
