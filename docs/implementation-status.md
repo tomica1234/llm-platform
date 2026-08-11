@@ -113,6 +113,15 @@ Commands actually run in this workspace for the 2026-08-11 change are below.
 Hardware tests are guarded and were not run in this unprivileged workspace; no new
 real-GPU claim is made from this test run.
 
+- Slurm helper/CLI coverage suite — PASS: 26 tests covering the fixed helper protocol,
+  reviewed-deployment resolution, injection rejection, Unix stream handling, optional
+  QOS, current-user and production-helper submission, and Slurm failure propagation;
+  focused branch coverage was 74.52% across the two production modules.
+- Ruff format/lint for the changed tests — PASS.
+- `make check` — STARTED: Ruff and strict mypy passed; the unit suite then stalled in
+  the pre-existing async SQLite authentication test after its first three tests. The
+  command was interrupted; no full-suite or aggregate-coverage PASS is claimed from
+  this sandbox run.
 - Slurm submit integration targeted suite — PASS: 15 tests covering optional/configured
   QOS, current-user gating, helper transport/request rejection, and reconciliation error
   reporting.

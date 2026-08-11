@@ -47,6 +47,8 @@ def test_sbatch_template_uses_validated_instance_comment(deployment_factory: Any
 def test_sbatch_template_includes_configured_qos(deployment_factory: Any) -> None:
     script = render_sbatch_script(deployment_factory(), "instance-qwen", qos="agent-service")
     assert "#SBATCH --qos=agent-service" in script
+    with pytest.raises(ConfigurationError, match="invalid QOS"):
+        render_sbatch_script(deployment_factory(), "instance-qwen", qos="bad\n#SBATCH --uid=root")
 
 
 @pytest.mark.asyncio
@@ -98,3 +100,47 @@ async def test_current_user_mode_requires_explicit_environment(
         await adapter.submit_backend(
             deployment_factory(), "instance-qwen", tmp_path / "backend.sbatch"
         )
+
+
+@pytest.mark.asyncio
+async def test_current_user_submit_propagates_sbatch_failure(
+    deployment_factory: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT", "1")
+    adapter = CliSlurmAdapter(
+        StubRunner([result(stderr="QOS rejected", returncode=1)]),
+        slurm_config=SlurmConfig(submission_mode="current_user", qos="agent-service"),
+    )
+    with pytest.raises(RuntimeError, match="sbatch failed: QOS rejected"):
+        await adapter.submit_backend(
+            deployment_factory(), "instance-qwen", tmp_path / "backend.sbatch"
+        )
+    assert "#SBATCH --qos=agent-service" in (tmp_path / "backend.sbatch").read_text()
+
+
+@pytest.mark.asyncio
+async def test_inspect_rejects_command_failure_and_malformed_record() -> None:
+    failed = CliSlurmAdapter(StubRunner([result(stderr="controller unavailable", returncode=1)]))
+    with pytest.raises(RuntimeError, match="squeue failed: controller unavailable"):
+        await failed.inspect("123")
+
+    malformed = CliSlurmAdapter(StubRunner([result("123|RUNNING|missing-comment\n")]))
+    with pytest.raises(RuntimeError, match="invalid job record"):
+        await malformed.inspect("123")
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_propagates_failure() -> None:
+    adapter = CliSlurmAdapter(StubRunner([result(stderr="permission denied", returncode=1)]))
+    with pytest.raises(RuntimeError, match="squeue failed: permission denied"):
+        await adapter.list_jobs()
+
+
+@pytest.mark.asyncio
+async def test_current_user_cancel_propagates_failure() -> None:
+    adapter = CliSlurmAdapter(
+        StubRunner([result(stderr="job already finished", returncode=1)]),
+        slurm_config=SlurmConfig(submission_mode="current_user"),
+    )
+    with pytest.raises(RuntimeError, match="scancel failed: job already finished"):
+        await adapter.cancel("123")
