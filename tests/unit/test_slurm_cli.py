@@ -6,6 +6,7 @@ import pytest
 
 from llm_platform.common.errors import ConfigurationError
 from llm_platform.common.subprocesses import CommandResult
+from llm_platform.config.schema import SlurmConfig
 from llm_platform.slurm.cli import CliSlurmAdapter, render_sbatch_script
 
 
@@ -35,21 +36,29 @@ def test_sbatch_template_uses_validated_instance_comment(deployment_factory: Any
     deployment = deployment_factory()
     script = render_sbatch_script(deployment, "instance-qwen")
     assert "#SBATCH --comment=instance-qwen" in script
-    assert "#SBATCH --uid=svc-llm" in script
+    assert "#SBATCH --uid" not in script
+    assert "#SBATCH --qos" not in script
     assert "/opt/llm-platform/app/current/bin/llm-backend" in script
     assert "--deployment qwen-vllm-1gpu" in script
     with pytest.raises(ConfigurationError):
         render_sbatch_script(deployment, "bad\n#SBATCH --gres=gpu:99")
 
 
+def test_sbatch_template_includes_configured_qos(deployment_factory: Any) -> None:
+    script = render_sbatch_script(deployment_factory(), "instance-qwen", qos="agent-service")
+    assert "#SBATCH --qos=agent-service" in script
+
+
 @pytest.mark.asyncio
 async def test_cli_submit_and_list_preserve_instance_mapping(
-    deployment_factory: Any, tmp_path: Path
+    deployment_factory: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = StubRunner(
         [result("1234;cluster\n"), result("1234|RUNNING|llm-qwen-vllm-1gpu|instance-qwen\n")]
     )
-    adapter = CliSlurmAdapter(runner)
+    monkeypatch.setenv("LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT", "1")
+    monkeypatch.setenv("USER", "shunta")
+    adapter = CliSlurmAdapter(runner, slurm_config=SlurmConfig(submission_mode="current_user"))
     deployment = deployment_factory()
     submitted = await adapter.submit_backend(
         deployment, "instance-qwen", tmp_path / "backend.sbatch"
@@ -63,9 +72,29 @@ async def test_cli_submit_and_list_preserve_instance_mapping(
 
 
 @pytest.mark.asyncio
-async def test_cli_rejects_non_numeric_job_id(deployment_factory: Any, tmp_path: Path) -> None:
-    adapter = CliSlurmAdapter(StubRunner([result("not-a-job\n")]))
+async def test_cli_rejects_non_numeric_job_id(
+    deployment_factory: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT", "1")
+    adapter = CliSlurmAdapter(
+        StubRunner([result("not-a-job\n")]),
+        slurm_config=SlurmConfig(submission_mode="current_user"),
+    )
     with pytest.raises(RuntimeError, match="invalid job ID"):
+        await adapter.submit_backend(
+            deployment_factory(), "instance-qwen", tmp_path / "backend.sbatch"
+        )
+
+
+@pytest.mark.asyncio
+async def test_current_user_mode_requires_explicit_environment(
+    deployment_factory: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT", raising=False)
+    adapter = CliSlurmAdapter(
+        StubRunner([]), slurm_config=SlurmConfig(submission_mode="current_user")
+    )
+    with pytest.raises(ConfigurationError, match="requires"):
         await adapter.submit_backend(
             deployment_factory(), "instance-qwen", tmp_path / "backend.sbatch"
         )

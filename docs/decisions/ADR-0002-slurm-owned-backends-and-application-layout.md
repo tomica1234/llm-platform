@@ -18,12 +18,12 @@ environment contains the Python package and `llm-platform`, `llm-backend`, `llmc
 and `agent` entry points. Runtime installations remain independently versioned under
 `/opt/llm-platform/runtimes/{llama.cpp,vllm}/current`.
 
-Only the CLI Slurm adapter starts production backends. It renders an argument-safe
-sbatch script, requests execution as `svc-llm`, and invokes `llm-backend` inside the
+Only the CLI Slurm adapter starts production backends. Through the validated local
+submit helper specified by ADR-0003, it renders an argument-safe sbatch script as
+`svc-llm` and invokes `llm-backend` inside the
 allocation. Runtime adapters in the control plane attach health/proxy clients to the
 loopback endpoint; they never create a local production process. The site must grant
-`svc-control` only the narrowly reviewed Slurm submit/cancel authority needed to
-manage `svc-llm` jobs.
+`svc-control` only access to the helper's fixed-schema Unix socket.
 
 ## Consequences
 

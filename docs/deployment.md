@@ -29,9 +29,11 @@ commented inventory placeholder before application.
 8. Register models disabled, benchmark, accept, then enable routing.
 9. Execute AT-001–AT-025 and record hardware/runtime versions in compatibility docs.
 
-Do not install or enable a backend systemd service. Confirm the reviewed Slurm policy
-allows `svc-control` to submit and cancel only platform backend jobs whose effective
-user is `svc-llm`. Test that `squeue --jobs <id> --format %u` reports `svc-llm`.
+Do not install or enable a backend runtime systemd service. Separately install the
+reviewed backend-submit helper unit: it runs as `svc-llm`, creates no TCP listener, and
+grants only `svc-control` access to its fixed-schema Unix socket. Keep `slurm.qos` unset
+while accounting storage is `accounting_storage/none`; configure `agent-service` only
+after SlurmDBD/QOS is installed and reviewed. Test that production jobs report `svc-llm`.
 
 ## Qwen3 0.6B hardware smoke configuration
 
@@ -43,12 +45,14 @@ deployment being tested. Run:
 
 ```bash
 LLM_PLATFORM_HARDWARE_TESTS=1 \
+LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT=1 \
 LLM_PLATFORM_HARDWARE_CONFIG_DIR=/etc/llm-platform \
 make test-hardware
 ```
 
-The test starts each backend through the orchestrator and Slurm, verifies READY and
-the `svc-llm` owner, routes a Chat Completions request, drains/stops it, and confirms
+The explicit environment opt-in makes this guarded test start each backend through the
+orchestrator and real Slurm as the invoking user, verify READY, route a Chat
+Completions request, drains/stops it, and confirms
 the Slurm job disappeared. Disable the smoke entries again after acceptance. The
 smoke result is not a production model benchmark or registration decision.
 

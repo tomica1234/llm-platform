@@ -65,8 +65,9 @@ disconnect behavior remain PENDING.
 ### Phase 3 — Queue, Slurm and GPU orchestration: IN_PROGRESS
 
 The Gateway now creates a long-running queue/planner/reconciler loop. Production
-constructs llama.cpp/vLLM adapters dynamically, uses `CliSlurmAdapter`, renders the
-actual sbatch script, launches only through Slurm as `svc-llm`, attaches proxy/health
+constructs llama.cpp/vLLM adapters dynamically, uses `CliSlurmAdapter`, renders an
+optional-QOS sbatch script without deprecated user impersonation, and launches through
+the restricted local helper as `svc-llm`. It attaches proxy/health
 clients without a second local process, publishes only READY instances, drains active
 requests before cancellation, and applies retry-budget circuit breaking. Startup
 reconciliation reconstructs enabled known instances from existing `svc-llm` jobs and
@@ -111,6 +112,15 @@ golden task corpus, and sufficient samples do not yet exist.
 Commands actually run in this workspace for the 2026-08-11 change are below.
 Hardware tests are guarded and were not run in this unprivileged workspace; no new
 real-GPU claim is made from this test run.
+
+- Slurm submit integration targeted suite — PASS: 15 tests covering optional/configured
+  QOS, current-user gating, helper transport/request rejection, and reconciliation error
+  reporting.
+- Ruff format/lint and strict mypy — PASS (104 files; 59 source files).
+- `make check` — STARTED; lint and typecheck passed, but the pre-existing async SQLite
+  authentication test did not complete in this sandbox. A direct 30-second run of
+  `test_sqlalchemy_key_store_authenticates_persisted_hash` reproduced the stall. The
+  command was interrupted; no full-suite PASS is claimed for this change.
 
 - `make check` — PASS: Ruff and strict mypy passed; 30 unit, 12 integration,
   and 6 security tests passed; aggregate 48 non-hardware tests passed with 70.63%

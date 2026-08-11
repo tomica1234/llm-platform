@@ -1,0 +1,26 @@
+[Unit]
+Description=Local LLM Platform validated Slurm submit helper
+After=munge.service slurmctld.service
+
+[Service]
+Type=simple
+User=svc-llm
+Group=svc-control
+RuntimeDirectory=llm-platform
+RuntimeDirectoryMode=0750
+ExecStart=/opt/llm-platform/app/current/bin/llm-backend-submit --config /etc/llm-platform --socket /run/llm-platform/backend-submit.sock --spool /var/lib/llm-platform/slurm --log-dir /var/log/llm-platform/backends
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/etc/llm-platform /srv/models
+ReadWritePaths=/run/llm-platform /var/lib/llm-platform/slurm /var/log/llm-platform/backends
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0007
+
+[Install]
+WantedBy=multi-user.target

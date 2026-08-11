@@ -21,6 +21,13 @@ scheduler:
   backend_health_timeout_seconds: 30
   max_switches_per_10_minutes: 3
   retry_budget: 3
+slurm:
+  # Omit qos while AccountingStorageType=accounting_storage/none. Set an explicitly
+  # reviewed value such as agent-service only after SlurmDBD/QOS is configured.
+  qos: null
+  submission_mode: helper
+  submit_socket: /run/llm-platform/backend-submit.sock
+  job_user: svc-llm
 queue:
   default_user_concurrency: 1
   max_user_concurrency: 2

@@ -1,3 +1,3 @@
-from llm_platform.orchestrator.reconciler import Reconciler, ReconcileResult
+from llm_platform.orchestrator.reconciler import ReconcileFailure, Reconciler, ReconcileResult
 
-__all__ = ["ReconcileResult", "Reconciler"]
+__all__ = ["ReconcileFailure", "ReconcileResult", "Reconciler"]

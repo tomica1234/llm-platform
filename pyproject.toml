@@ -38,6 +38,7 @@ dev = [
 [project.scripts]
 llm-platform = "llm_platform.gateway.main:run"
 llm-backend = "llm_platform.runtimes.backend_main:run_backend"
+llm-backend-submit = "llm_platform.slurm.submit_helper:run"
 llmctl = "llm_platform.admin_cli.main:app"
 agent = "llm_platform.agent_harness.cli:app"
 

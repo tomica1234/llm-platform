@@ -20,6 +20,11 @@ def test_backend_bind_must_be_loopback() -> None:
         PlatformConfig(backend_bind="0.0.0.0")
 
 
+def test_production_rejects_current_user_slurm_submission() -> None:
+    with pytest.raises(ValidationError, match="production requires"):
+        PlatformConfig(environment="production", slurm={"submission_mode": "current_user"})
+
+
 def test_deployment_rejects_relative_path(deployment_factory: object) -> None:
     deployment = deployment_factory()  # type: ignore[operator]
     payload = deployment.model_dump()

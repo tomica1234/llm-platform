@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -80,7 +81,16 @@ async def test_orchestrator_gateway_backend_and_gpu_release(
 
     registry = DeploymentRegistry()
     adapter = LlamaCppAdapter() if runtime is RuntimeKind.LLAMA_CPP else VllmAdapter()
-    slurm = CliSlurmAdapter(config_dir=config_dir)
+    if os.environ.get("LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT") != "1":
+        pytest.fail("set LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT=1 for this reviewed test")
+    if bundle.platform.environment == "production":
+        pytest.fail("current-user hardware acceptance may not use production configuration")
+    slurm_config = bundle.platform.slurm.model_copy(update={"submission_mode": "current_user"})
+    slurm = CliSlurmAdapter(
+        application_current=Path(sys.prefix),
+        config_dir=config_dir,
+        slurm_config=slurm_config,
+    )
     reconciler = Reconciler(
         {deployment_id: deployment},
         {deployment_id: adapter},
@@ -95,6 +105,10 @@ async def test_orchestrator_gateway_backend_and_gpu_release(
     job_id: str | None = None
     try:
         result = await reconciler.reconcile(start)
+        assert not result.failures, "; ".join(
+            f"{failure.operation} {failure.deployment_id}: {failure.reason}"
+            for failure in result.failures
+        )
         assert result.started == (deployment_id,)
         instance = reconciler.instances[deployment_id]
         job_id = instance.allocation_id
@@ -108,7 +122,7 @@ async def test_orchestrator_gateway_backend_and_gpu_release(
             timeout_seconds=30,
         )
         assert owner.returncode == 0
-        assert owner.stdout.strip() == "svc-llm"
+        assert owner.stdout.strip() == os.environ.get("USER")
 
         router = RuleRouter([model], [deployment], bundle.routing.modes)
         service = GatewayService(router, registry, [model], request_timeout_seconds=180)

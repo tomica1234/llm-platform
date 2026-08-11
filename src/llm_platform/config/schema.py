@@ -46,6 +46,29 @@ class SchedulerConfig(StrictModel):
     retry_budget: Annotated[int, Field(ge=0)] = 3
 
 
+class SlurmConfig(StrictModel):
+    qos: str | None = None
+    submission_mode: Literal["helper", "current_user"] = "helper"
+    submit_socket: Path = Path("/run/llm-platform/backend-submit.sock")
+    job_user: str = "svc-llm"
+
+    @field_validator("qos", "job_user")
+    @classmethod
+    def safe_slurm_token(cls, value: str | None) -> str | None:
+        if value is not None and (
+            not value or not value.replace("-", "").replace("_", "").isalnum()
+        ):
+            raise ValueError("Slurm values must contain only letters, digits, '-' or '_'")
+        return value
+
+    @field_validator("submit_socket")
+    @classmethod
+    def absolute_socket(cls, value: Path) -> Path:
+        if not value.is_absolute():
+            raise ValueError("Slurm submit socket must be absolute")
+        return value
+
+
 class QueueConfig(StrictModel):
     default_user_concurrency: PositiveInt = 1
     max_user_concurrency: PositiveInt = 2
@@ -77,6 +100,7 @@ class PlatformConfig(StrictModel):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
+    slurm: SlurmConfig = Field(default_factory=SlurmConfig)
     queue: QueueConfig = Field(default_factory=QueueConfig)
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
     backend_bind: str = "127.0.0.1"
@@ -87,6 +111,12 @@ class PlatformConfig(StrictModel):
         if value not in {"127.0.0.1", "::1", "localhost"}:
             raise ValueError("backend_bind must be loopback")
         return value
+
+    @model_validator(mode="after")
+    def production_requires_submit_helper(self) -> "PlatformConfig":
+        if self.environment == "production" and self.slurm.submission_mode != "helper":
+            raise ValueError("production requires the svc-llm submit helper")
+        return self
 
 
 class Capabilities(StrictModel):

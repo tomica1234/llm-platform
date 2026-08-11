@@ -11,6 +11,12 @@ from llm_platform.scheduler.planner import ResourcePlanner
 from llm_platform.slurm.fake import FakeSlurmAdapter
 
 
+class FailingSlurmAdapter(FakeSlurmAdapter):
+    async def submit_backend(self, *args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        raise RuntimeError("sbatch failed: Invalid qos specification")
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_balanced_to_three_gpu_shared_after_drain(deployment_factory: Any) -> None:
@@ -65,3 +71,22 @@ async def test_non_preemptible_job_blocks_transition(deployment_factory: Any) ->
     result = await reconciler.reconcile(plan)
     assert result.blocked
     assert not slurm.jobs
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_submit_failure_is_reported_by_reconciliation(deployment_factory: Any) -> None:
+    deployment = deployment_factory("failed-submit")
+    reconciler = Reconciler(
+        {deployment.deployment_id: deployment},
+        {deployment.deployment_id: FakeRuntimeAdapter()},
+        FailingSlurmAdapter(),
+    )
+    result = await reconciler.reconcile(
+        ResourcePlanner(
+            [deployment], [GpuProfile(name="failed", deployments=[deployment.deployment_id])]
+        ).plan("failed", set())
+    )
+    assert result.started == ()
+    assert result.failures[0].operation == "submit"
+    assert "Invalid qos specification" in result.failures[0].reason

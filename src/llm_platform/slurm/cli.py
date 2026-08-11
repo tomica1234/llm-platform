@@ -1,9 +1,12 @@
+import asyncio
+import json
+import os
 import re
 from pathlib import Path
 
 from llm_platform.common.errors import ConfigurationError
 from llm_platform.common.subprocesses import AsyncioCommandRunner, CommandRunner
-from llm_platform.config.schema import DeploymentConfig
+from llm_platform.config.schema import DeploymentConfig, SlurmConfig
 from llm_platform.slurm.base import SlurmAdapter, SlurmJob, SlurmJobState
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -38,20 +41,30 @@ def render_sbatch_script(
     *,
     application_current: Path = Path("/opt/llm-platform/app/current"),
     config_dir: Path = Path("/etc/llm-platform"),
+    qos: str | None = None,
+    output_path: Path | None = None,
 ) -> str:
     validate_identifier(deployment.deployment_id, "deployment ID")
     validate_identifier(instance_id, "instance ID")
+    directives = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        f"#SBATCH --job-name=llm-{deployment.deployment_id}",
+        f"#SBATCH --comment={instance_id}",
+        f"#SBATCH --gres=gpu:{deployment.resources.gpus}",
+        f"#SBATCH --cpus-per-task={deployment.resources.cpus}",
+        f"#SBATCH --mem={deployment.resources.ram_gb}G",
+    ]
+    if qos is not None:
+        validate_identifier(qos, "QOS")
+        directives.append(f"#SBATCH --qos={qos}")
+    if output_path is not None:
+        if not output_path.is_absolute() or "\n" in str(output_path):
+            raise ConfigurationError("invalid Slurm output path")
+        directives.append(f"#SBATCH --output={output_path}")
     return "\n".join(
-        [
-            "#!/usr/bin/env bash",
-            "set -euo pipefail",
-            f"#SBATCH --job-name=llm-{deployment.deployment_id}",
-            f"#SBATCH --comment={instance_id}",
-            "#SBATCH --qos=agent-service",
-            "#SBATCH --uid=svc-llm",
-            f"#SBATCH --gres=gpu:{deployment.resources.gpus}",
-            f"#SBATCH --cpus-per-task={deployment.resources.cpus}",
-            f"#SBATCH --mem={deployment.resources.ram_gb}G",
+        directives
+        + [
             "# Generated template: the service wrapper resolves the registered deployment.",
             (
                 f"{application_current}/bin/llm-backend "
@@ -70,10 +83,65 @@ class CliSlurmAdapter(SlurmAdapter):
         *,
         application_current: Path = Path("/opt/llm-platform/app/current"),
         config_dir: Path = Path("/etc/llm-platform"),
+        slurm_config: SlurmConfig | None = None,
     ) -> None:
         self._runner = runner or AsyncioCommandRunner()
         self._application_current = application_current
         self._config_dir = config_dir
+        self._config = slurm_config or SlurmConfig()
+
+    async def _submit(
+        self, deployment: DeploymentConfig, instance_id: str, script_path: Path
+    ) -> str:
+        if self._config.submission_mode == "current_user":
+            if os.environ.get("LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT") != "1":
+                raise ConfigurationError(
+                    "current-user Slurm submission requires "
+                    "LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT=1"
+                )
+            _write_script(
+                script_path,
+                render_sbatch_script(
+                    deployment,
+                    instance_id,
+                    application_current=self._application_current,
+                    config_dir=self._config_dir,
+                    qos=self._config.qos,
+                ),
+            )
+            result = await self._runner.run(
+                ("sbatch", "--parsable", str(script_path)), timeout_seconds=30
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"sbatch failed: {result.stderr.strip() or result.stdout.strip()}"
+                )
+            return result.stdout
+        response = await self._helper_request(
+            {
+                "operation": "submit",
+                "deployment_id": deployment.deployment_id,
+                "instance_id": instance_id,
+            }
+        )
+        return str(response.get("stdout", ""))
+
+    async def _helper_request(self, request: dict[str, str]) -> dict[str, object]:
+        reader, writer = await asyncio.open_unix_connection(str(self._config.submit_socket))
+        writer.write(json.dumps(request, separators=(",", ":")).encode() + b"\n")
+        await writer.drain()
+        response_line = await asyncio.wait_for(reader.readline(), timeout=30)
+        writer.close()
+        await writer.wait_closed()
+        if not response_line:
+            raise RuntimeError("backend-submit helper closed without a response")
+        response_object: object = json.loads(response_line)
+        if not isinstance(response_object, dict):
+            raise RuntimeError("backend-submit helper returned an invalid response")
+        response = {str(key): value for key, value in response_object.items()}
+        if not response.get("ok"):
+            raise RuntimeError(f"sbatch failed: {response.get('error', 'unknown helper error')}")
+        return response
 
     async def submit_backend(
         self, deployment: DeploymentConfig, instance_id: str, script_path: Path
@@ -81,21 +149,8 @@ class CliSlurmAdapter(SlurmAdapter):
         validate_identifier(instance_id, "instance ID")
         if not script_path.is_absolute():
             raise ConfigurationError("sbatch script path must be absolute")
-        _write_script(  # noqa: ASYNC240
-            script_path,
-            render_sbatch_script(
-                deployment,
-                instance_id,
-                application_current=self._application_current,
-                config_dir=self._config_dir,
-            ),
-        )
-        result = await self._runner.run(
-            ("sbatch", "--parsable", str(script_path)), timeout_seconds=30
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"sbatch failed: {result.stderr.strip()}")
-        job_id = result.stdout.strip().split(";", 1)[0]
+        stdout = await self._submit(deployment, instance_id, script_path)
+        job_id = stdout.strip().split(";", 1)[0]
         if not job_id.isdigit():
             raise RuntimeError("sbatch returned an invalid job ID")
         return SlurmJob(job_id, instance_id, deployment.deployment_id, SlurmJobState.PENDING)
@@ -122,13 +177,21 @@ class CliSlurmAdapter(SlurmAdapter):
     async def cancel(self, job_id: str) -> None:
         if not job_id.isdigit():
             raise ConfigurationError("invalid Slurm job ID")
+        if self._config.submission_mode == "helper":
+            await self._helper_request({"operation": "cancel", "job_id": job_id})
+            return
         result = await self._runner.run(("scancel", job_id), timeout_seconds=30)
         if result.returncode != 0:
             raise RuntimeError(f"scancel failed: {result.stderr.strip()}")
 
     async def list_jobs(self) -> list[SlurmJob]:
+        job_user = (
+            os.environ.get("USER", "")
+            if self._config.submission_mode == "current_user"
+            else self._config.job_user
+        )
         result = await self._runner.run(
-            ("squeue", "--noheader", "--user", "svc-llm", "--format", "%i|%T|%j|%k"),
+            ("squeue", "--noheader", "--user", job_user, "--format", "%i|%T|%j|%k"),
             timeout_seconds=30,
         )
         if result.returncode != 0:

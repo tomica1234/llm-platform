@@ -15,7 +15,7 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 | Planner/state transitions, §12 | scheduler + long-running control plane + reconciler | scheduler/orchestration/recovery tests | PASS (fake); hardware test guarded |
 | Fair queue/cancel, §13 | `queueing/fair.py` + persistent request repository | three-user/cancel/starvation tests | PASS (metadata durable) |
 | Runtime adapters, §14 | llama.cpp/vLLM/fake adapters | adapter contracts | PASS (mock); hardware pending |
-| Slurm, §15 | CLI/fake adapters, svc-llm sbatch templates | CLI argument, recovery, guarded real-runtime tests | host foundation user-verified; integrated acceptance pending execution |
+| Slurm, §15 | CLI/fake adapters, optional-QOS sbatch rendering, validated svc-llm Unix-socket helper | QOS modes, fixed-schema rejection, helper/current-user modes, reconciliation errors, guarded real-runtime tests | host foundation user-verified; orchestration rerun and installed-helper identity acceptance pending |
 | Store/cache/layout, §16–17 | config, deploy templates, scripts | dry-run review | PARTIAL; host pending |
 | Persistence/privacy, §18 | SQLAlchemy request + desired-profile repositories/Alembic | DB/idempotency/migration tests | PASS (SQLite); PostgreSQL pending |
 | Metrics/logs/alerts, §19 | Prometheus + redacted structured logging | metrics/privacy tests | PARTIAL; host alerts pending |

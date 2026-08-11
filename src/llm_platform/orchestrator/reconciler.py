@@ -20,6 +20,14 @@ class ReconcileResult:
     stopped: tuple[str, ...]
     kept: tuple[str, ...]
     blocked: bool = False
+    failures: tuple["ReconcileFailure", ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ReconcileFailure:
+    deployment_id: str
+    operation: str
+    reason: str
 
 
 class Reconciler:
@@ -115,9 +123,19 @@ class Reconciler:
             if not self.breaker.allow_attempt(deployment_id):
                 continue
             instance_id = f"instance-{deployment_id}"
-            job = await self.slurm.submit_backend(
-                deployment, instance_id, self.script_directory / f"{instance_id}.sbatch"
-            )
+            # Submission failures are operational status, not control-plane process death.
+            try:
+                job = await self.slurm.submit_backend(
+                    deployment, instance_id, self.script_directory / f"{instance_id}.sbatch"
+                )
+            except Exception as exc:
+                self.breaker.record_failure(deployment_id)
+                return ReconcileResult(
+                    tuple(started),
+                    tuple(stopped),
+                    plan.keep,
+                    failures=(ReconcileFailure(deployment_id, "submit", str(exc)),),
+                )
             allocation = Allocation(
                 job.job_id, job.gpu_ids, deployment.resources.cpus, deployment.resources.ram_gb
             )

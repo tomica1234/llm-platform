@@ -49,7 +49,7 @@ def build_app(config_dir: Path) -> FastAPI:
     reconciler = Reconciler(
         deployments,
         adapters,
-        CliSlurmAdapter(config_dir=config_dir),
+        CliSlurmAdapter(config_dir=config_dir, slurm_config=bundle.platform.slurm),
         drain_timeout=bundle.platform.scheduler.drain_timeout_seconds,
         health_timeout=bundle.platform.scheduler.backend_health_timeout_seconds,
         registry=registry,
