@@ -34,9 +34,12 @@ class ControlPlane:
         self._wake = asyncio.Event()
         self._ready = asyncio.Condition()
         self._task: asyncio.Task[None] | None = None
+        self._waiters: set[asyncio.Task[object]] = set()
+        self._stopping = False
         self.orphan_job_ids: tuple[str, ...] = ()
 
     async def start(self) -> None:
+        self._stopping = False
         self.orphan_job_ids = await self.reconciler.recover()
         async with self.sessions() as session:
             persisted = await ControlPlaneStateRepository(session).desired_profile()
@@ -65,11 +68,25 @@ class ControlPlane:
         self._wake.set()
 
     async def stop(self) -> None:
-        if self._task is None:
-            return
-        self._task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await self._task
+        self.begin_shutdown()
+        waiters = tuple(self._waiters)
+        if waiters:
+            await asyncio.gather(*waiters, return_exceptions=True)
+        task = self._task
+        if task is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            if self._task is task:
+                self._task = None
+
+    def begin_shutdown(self) -> None:
+        """Synchronously release request and reconciliation tasks during server shutdown."""
+        self._stopping = True
+        self._wake.set()
+        for waiter in tuple(self._waiters):
+            waiter.cancel()
+        if self._task is not None:
+            self._task.cancel()
 
     def _profile_for(self, deployment_id: str) -> str:
         candidates = [
@@ -92,24 +109,30 @@ class ControlPlane:
         *,
         timeout_seconds: float,
     ) -> None:
+        if self._stopping:
+            raise asyncio.CancelledError("control plane is shutting down")
+        current_task = asyncio.current_task()
+        if current_task is None:
+            raise RuntimeError("deployment waits require an asyncio task")
+        self._waiters.add(current_task)
         item = QueueItem(request_id, user_id, deployment_id)
-        self.queue.enqueue(item)
-        async with self.sessions() as session:
-            repository = RequestRepository(session)
-            await repository.create(
-                request_id=request_id,
-                user_id=user_id,
-                requested_model=requested_model,
-                priority=item.queue_class.value,
-                body=body,
-            )
-        already_ready = (
-            deployment_id in self.reconciler.instances
-            and self.reconciler.instances[deployment_id].state.value == "ready"
-        )
-        if not already_ready:
-            await self.set_desired_profile(self._profile_for(deployment_id))
         try:
+            self.queue.enqueue(item)
+            async with self.sessions() as session:
+                repository = RequestRepository(session)
+                await repository.create(
+                    request_id=request_id,
+                    user_id=user_id,
+                    requested_model=requested_model,
+                    priority=item.queue_class.value,
+                    body=body,
+                )
+            already_ready = (
+                deployment_id in self.reconciler.instances
+                and self.reconciler.instances[deployment_id].state.value == "ready"
+            )
+            if not already_ready:
+                await self.set_desired_profile(self._profile_for(deployment_id))
             async with asyncio.timeout(timeout_seconds):
                 async with self._ready:
                     await self._ready.wait_for(
@@ -123,6 +146,16 @@ class ControlPlane:
                     request_id, {"queued"}, "assigned", selected_deployment=deployment_id
                 )
             self.queue.assign(request_id)
+        except asyncio.CancelledError:
+            self.queue.cancel(request_id)
+            async with self.sessions() as session:
+                await RequestRepository(session).transition(
+                    request_id,
+                    {"queued", "assigned"},
+                    "cancelled",
+                    error_code="gateway_shutdown" if self._stopping else "request_cancelled",
+                )
+            raise
         except BaseException:
             self.queue.cancel(request_id)
             async with self.sessions() as session:
@@ -130,6 +163,8 @@ class ControlPlane:
                     request_id, {"queued", "assigned"}, "failed", error_code="backend_unavailable"
                 )
             raise
+        finally:
+            self._waiters.discard(current_task)
 
     async def request_started(self, request_id: str, deployment_id: str) -> None:
         async with self.sessions() as session:

@@ -240,6 +240,12 @@ class GatewayService:
             if self.control_plane is not None:
                 await self.control_plane.request_finished(request_id, failed=True)
             raise
+        except asyncio.CancelledError:
+            METRICS.cancellations.inc()
+            await selected.adapter.cancel(selected.instance, request_id)
+            if self.control_plane is not None:
+                await self.control_plane.request_finished(request_id, failed=True)
+            raise
         except BaseException:
             if self.control_plane is not None:
                 await self.control_plane.request_finished(request_id, failed=True)

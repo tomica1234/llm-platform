@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,21 @@ class HealthyHttpClient:
     async def get_health(self, base_url: str) -> bool:
         del base_url
         return True
+
+
+class UnavailableReconciler:
+    def __init__(self, deployment_id: str) -> None:
+        self.deployments = {deployment_id: object()}
+        self.instances: dict[str, object] = {}
+        self.reconcile_started = asyncio.Event()
+
+    async def recover(self) -> tuple[str, ...]:
+        return ()
+
+    async def reconcile(self, plan: object) -> None:
+        del plan
+        self.reconcile_started.set()
+        await asyncio.Event().wait()
 
 
 @pytest.mark.integration
@@ -75,6 +91,59 @@ async def test_queued_request_starts_slurm_managed_backend_and_persists_metadata
             assert state is not None
             assert state.desired_profile == "balanced"
     finally:
+        await controller.stop()
+        await database.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_shutdown_cancels_backend_wait_and_terminalizes_request(
+    deployment_factory: Any, tmp_path: Path
+) -> None:
+    deployment = deployment_factory("unavailable", model_id="dvf")
+    profile = GpuProfile(name="needed", deployments=[deployment.deployment_id])
+    idle = GpuProfile(name="idle", deployments=[])
+    database = Database(f"sqlite+aiosqlite:///{tmp_path / 'shutdown.db'}")
+    await database.create_schema_for_tests()
+    reconciler = UnavailableReconciler(deployment.deployment_id)
+    controller = ControlPlane(
+        reconciler,  # type: ignore[arg-type]
+        ResourcePlanner([deployment], [profile, idle]),
+        [profile, idle],
+        database.sessions,
+        interval_seconds=60,
+    )
+    await controller.start()
+    request = asyncio.create_task(
+        controller.wait_for_deployment(
+            deployment.deployment_id,
+            "request-shutdown",
+            "user-1",
+            "force/unavailable",
+            {"model": "force/unavailable"},
+            timeout_seconds=600,
+        )
+    )
+    try:
+        await asyncio.wait_for(reconciler.reconcile_started.wait(), timeout=1)
+        await asyncio.wait_for(controller._wake.wait(), timeout=1)
+        assert controller.queue.position("request-shutdown") == 0
+
+        await asyncio.wait_for(controller.stop(), timeout=1)
+
+        assert request.cancelled()
+        assert controller._task is None
+        async with database.session() as session:
+            row = await session.get(InferenceRequestRow, "request-shutdown")
+            assert row is not None
+            assert row.state == "cancelled"
+            assert row.error_code == "gateway_shutdown"
+            assert row.completed_at is not None
+
+        await asyncio.wait_for(controller.stop(), timeout=1)
+    finally:
+        if not request.done():
+            request.cancel()
         await controller.stop()
         await database.dispose()
 

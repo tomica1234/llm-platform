@@ -9,11 +9,11 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 |---|---|---|---|
 | Architecture and separation, §6 | package boundaries, `docs/architecture.md`, ADR-0001 | documentation + security review | DONE (offline) |
 | Harness and safety, §8 | `agent_harness/*` | vertical and security suites | PARTIAL |
-| Gateway API/errors/auth, §9 | `gateway/*`, `auth/*` | `test_gateway.py`, `test_auth.py` | PASS (fake) |
+| Gateway API/errors/auth, §9 | `gateway/*`, `auth/*`; early server-exit notification and bounded active-request grace | `test_gateway.py`, `test_auth.py`, shutdown integration regression | PASS (fake) |
 | Router, §10 | `routing/router.py` | `test_routing.py` | PASS (fake) |
 | Model/deployment registry, §11 | strict config + SQL models | config tests, validation CLI | DONE (offline) |
 | Planner/state transitions, §12 | scheduler + long-running control plane + reconciler | scheduler/orchestration/recovery tests, including structured immediate Slurm startup failure and bounded allocation-release polling on stop | PASS (fake); hardware test guarded |
-| Fair queue/cancel, §13 | `queueing/fair.py` + persistent request repository | three-user/cancel/starvation tests | PASS (metadata durable) |
+| Fair queue/cancel, §13 | `queueing/fair.py` + persistent request repository; shutdown-cancellable backend waits | three-user/cancel/starvation tests; unavailable-backend shutdown terminalizes queued DB state | PASS (metadata durable) |
 | Runtime adapters, §14 | llama.cpp/vLLM/fake adapters | adapter contracts | PASS (mock); hardware pending |
 | Slurm, §15 | CLI/fake adapters, optional-QOS sbatch rendering, validated svc-llm Unix-socket helper | QOS modes, fixed-schema rejection, helper/current-user modes, submission and terminal-start reconciliation errors, guarded real-runtime tests | host foundation user-verified; orchestration rerun and installed-helper identity acceptance pending |
 | Store/cache/layout, §16–17 | config, deploy templates, scripts | dry-run review | PARTIAL; host pending |

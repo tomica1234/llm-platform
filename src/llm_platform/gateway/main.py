@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from types import FrameType
 from typing import Annotated
 
 import typer
@@ -20,6 +21,16 @@ from llm_platform.runtimes.vllm import VllmAdapter
 from llm_platform.scheduler.planner import ResourcePlanner
 from llm_platform.slurm.cli import CliSlurmAdapter
 from llm_platform.telemetry.logging import configure_logging
+
+
+class GatewayServer(uvicorn.Server):
+    """Notify the control plane before Uvicorn waits for request tasks to drain."""
+
+    def handle_exit(self, sig: int, frame: FrameType | None) -> None:
+        control_plane = getattr(self.config.loaded_app.state, "control_plane", None)
+        if control_plane is not None:
+            control_plane.begin_shutdown()
+        super().handle_exit(sig, frame)
 
 
 def build_app(config_dir: Path) -> FastAPI:
@@ -78,6 +89,7 @@ def build_app(config_dir: Path) -> FastAPI:
         shutdown=shutdown,
     )
     app.state.database = database
+    app.state.control_plane = control_plane
     return app
 
 
@@ -89,7 +101,13 @@ def run(
     configure_logging()
     bundle = load_bundle(config)
     app = build_app(config)
-    uvicorn.run(app, host=bundle.platform.gateway.host, port=bundle.platform.gateway.port)
+    server_config = uvicorn.Config(
+        app,
+        host=bundle.platform.gateway.host,
+        port=bundle.platform.gateway.port,
+        timeout_graceful_shutdown=bundle.platform.gateway.shutdown_grace_seconds,
+    )
+    GatewayServer(server_config).run()
 
 
 def main() -> None:

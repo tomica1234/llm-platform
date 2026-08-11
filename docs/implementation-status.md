@@ -16,6 +16,23 @@ service identities and production directories, llama.cpp b10356 at commit
 Slurm as `svc-llm`. This is operator-supplied evidence; this change did not rerun or
 independently inspect the privileged host configuration.
 
+The operator additionally reports successful production Gateway-to-llama.cpp
+acceptance, backend READY and cleanup, correct service/job identities, and a normal
+Gateway restart in approximately 0.2 seconds. A prior unavailable-backend request
+exposed an unbounded shutdown wait. The Gateway now signals the control plane as
+soon as Uvicorn receives an exit signal, cancels backend/profile/queue waiters,
+terminalizes their persistent request rows as `cancelled`, and retains a bounded
+five-second grace period for active inference before Uvicorn cancellation.
+
+Verification for the shutdown fix:
+
+- Focused control-plane and Gateway integration tests: PASS, 9 tests.
+- Ruff format and lint: PASS.
+- strict mypy: PASS, 59 source files.
+- `git diff --check`: PASS.
+- `make check`: PASS: 61 unit, 20 integration, 6 security, and 87 aggregate
+  non-hardware tests; secret-pattern check PASS; coverage 76.86% against 70%.
+
 ## Development environment inventory
 
 - Development path: `$HOME/wip/llm-platform`

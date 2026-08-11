@@ -30,6 +30,7 @@ class GatewayConfig(StrictModel):
     port: Annotated[int, Field(ge=1, le=65535)] = 8000
     public_base_url: str = "http://127.0.0.1:8000"
     request_timeout_seconds: PositiveInt = 600
+    shutdown_grace_seconds: PositiveInt = 5
     cancel_on_disconnect: bool = True
     trusted_proxy_headers: bool = False
 
