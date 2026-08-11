@@ -21,17 +21,23 @@ acceptance, backend READY and cleanup, correct service/job identities, and a nor
 Gateway restart in approximately 0.2 seconds. A prior unavailable-backend request
 exposed an unbounded shutdown wait. The Gateway now signals the control plane as
 soon as Uvicorn receives an exit signal, cancels backend/profile/queue waiters,
-terminalizes their persistent request rows as `cancelled`, and retains a bounded
-five-second grace period for active inference before Uvicorn cancellation.
+and retains a bounded five-second grace period for active inference before Uvicorn
+cancellation. The operator's production rerun measured 0.276 seconds and confirmed
+HTTP/request-task cancellation, but PostgreSQL inspection found the cancelled row
+still `queued`; two rows from earlier crashes were also stale. The follow-up fix
+isolates terminalization in a bounded cleanup task that the lifespan finalizer drains,
+and startup atomically fails any residual `queued`, `assigned`, or `running` rows with
+`gateway_restarted`. Production verification of that follow-up is pending.
 
 Verification for the shutdown fix:
 
-- Focused control-plane and Gateway integration tests: PASS, 9 tests.
+- Focused persistence, control-plane, and Gateway tests: PASS, 18 tests, including
+  an actual Uvicorn TCP server shutdown lifecycle and delayed DB terminalization.
 - Ruff format and lint: PASS.
 - strict mypy: PASS, 59 source files.
 - `git diff --check`: PASS.
-- `make check`: PASS: 61 unit, 20 integration, 6 security, and 87 aggregate
-  non-hardware tests; secret-pattern check PASS; coverage 76.86% against 70%.
+- `make check`: PASS: 61 unit, 22 integration, 6 security, and 89 aggregate
+  non-hardware tests; secret-pattern check PASS; coverage 77.24% against 70%.
 
 ## Development environment inventory
 

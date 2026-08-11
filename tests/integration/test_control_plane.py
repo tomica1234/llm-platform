@@ -11,6 +11,7 @@ from llm_platform.orchestrator.control_plane import ControlPlane
 from llm_platform.orchestrator.reconciler import Reconciler
 from llm_platform.persistence.database import Database
 from llm_platform.persistence.models import ControlPlaneStateRow, InferenceRequestRow
+from llm_platform.persistence.repositories import RequestRepository
 from llm_platform.runtimes.llama_cpp import LlamaCppAdapter
 from llm_platform.scheduler.planner import ResourcePlanner
 from llm_platform.slurm.fake import FakeSlurmAdapter
@@ -144,6 +145,51 @@ async def test_shutdown_cancels_backend_wait_and_terminalizes_request(
     finally:
         if not request.done():
             request.cancel()
+        await controller.stop()
+        await database.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_startup_terminalizes_requests_left_unfinished_by_previous_process(
+    deployment_factory: Any, tmp_path: Path
+) -> None:
+    deployment = deployment_factory("unavailable", model_id="dvf")
+    profile = GpuProfile(name="needed", deployments=[deployment.deployment_id])
+    idle = GpuProfile(name="idle", deployments=[])
+    database = Database(f"sqlite+aiosqlite:///{tmp_path / 'recovery.db'}")
+    await database.create_schema_for_tests()
+    async with database.session() as session:
+        repository = RequestRepository(session)
+        for request_id in ("stale-queued", "stale-assigned", "stale-running"):
+            await repository.create(
+                request_id=request_id,
+                user_id="user-1",
+                requested_model="force/dvf",
+                priority="agent",
+                body={"model": "force/dvf"},
+            )
+        await repository.transition("stale-assigned", {"queued"}, "assigned")
+        await repository.transition("stale-running", {"queued"}, "assigned")
+        await repository.transition("stale-running", {"assigned"}, "running")
+
+    reconciler = UnavailableReconciler(deployment.deployment_id)
+    controller = ControlPlane(
+        reconciler,  # type: ignore[arg-type]
+        ResourcePlanner([deployment], [profile, idle]),
+        [profile, idle],
+        database.sessions,
+    )
+    try:
+        await controller.start()
+        async with database.session() as session:
+            for request_id in ("stale-queued", "stale-assigned", "stale-running"):
+                row = await session.get(InferenceRequestRow, request_id)
+                assert row is not None
+                assert row.state == "failed"
+                assert row.error_code == "gateway_restarted"
+                assert row.completed_at is not None
+    finally:
         await controller.stop()
         await database.dispose()
 

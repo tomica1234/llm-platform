@@ -27,7 +27,8 @@ class GatewayServer(uvicorn.Server):
     """Notify the control plane before Uvicorn waits for request tasks to drain."""
 
     def handle_exit(self, sig: int, frame: FrameType | None) -> None:
-        control_plane = getattr(self.config.loaded_app.state, "control_plane", None)
+        app_state = getattr(self.config.app, "state", None)
+        control_plane = getattr(app_state, "control_plane", None)
         if control_plane is not None:
             control_plane.begin_shutdown()
         super().handle_exit(sig, frame)
@@ -75,6 +76,7 @@ def build_app(config_dir: Path) -> FastAPI:
         interval_seconds=bundle.platform.scheduler.reconcile_interval_seconds,
         max_users=bundle.platform.queue.max_users,
         max_pending_per_user=bundle.platform.queue.max_pending_per_user,
+        cleanup_timeout_seconds=bundle.platform.gateway.shutdown_grace_seconds,
     )
     service.control_plane = control_plane
 

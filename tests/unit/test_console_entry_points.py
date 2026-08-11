@@ -115,7 +115,7 @@ def test_gateway_server_notifies_control_plane_before_uvicorn_exit(
     control_plane = SimpleNamespace(begin_shutdown=lambda: notifications.append("control-plane"))
     server = object.__new__(gateway.GatewayServer)
     server.config = SimpleNamespace(
-        loaded_app=SimpleNamespace(state=SimpleNamespace(control_plane=control_plane))
+        app=SimpleNamespace(state=SimpleNamespace(control_plane=control_plane))
     )
     monkeypatch.setattr(
         gateway.uvicorn.Server,

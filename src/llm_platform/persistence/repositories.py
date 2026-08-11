@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from llm_platform.persistence.models import ControlPlaneStateRow, InferenceRequestRow, utc_now
@@ -94,6 +94,17 @@ class RequestRepository:
             )
         ).all()
         return [self._record(row) for row in rows]
+
+    async def fail_unfinished(self, *, error_code: str) -> int:
+        result = await self.session.execute(
+            update(InferenceRequestRow)
+            .where(InferenceRequestRow.state.in_(["queued", "assigned", "running"]))
+            .values(state="failed", completed_at=utc_now(), error_code=error_code)
+            .returning(InferenceRequestRow.id)
+        )
+        request_ids = result.scalars().all()
+        await self.session.commit()
+        return len(request_ids)
 
     @staticmethod
     def _record(row: InferenceRequestRow) -> RequestRecord:

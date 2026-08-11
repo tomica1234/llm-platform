@@ -13,11 +13,11 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 | Router, §10 | `routing/router.py` | `test_routing.py` | PASS (fake) |
 | Model/deployment registry, §11 | strict config + SQL models | config tests, validation CLI | DONE (offline) |
 | Planner/state transitions, §12 | scheduler + long-running control plane + reconciler | scheduler/orchestration/recovery tests, including structured immediate Slurm startup failure and bounded allocation-release polling on stop | PASS (fake); hardware test guarded |
-| Fair queue/cancel, §13 | `queueing/fair.py` + persistent request repository; shutdown-cancellable backend waits | three-user/cancel/starvation tests; unavailable-backend shutdown terminalizes queued DB state | PASS (metadata durable) |
+| Fair queue/cancel, §13 | `queueing/fair.py` + persistent request repository; shutdown-cancellable backend waits; startup terminalization of stale work | three-user/cancel/starvation tests; actual Uvicorn shutdown with delayed terminal DB cleanup; queued/assigned/running startup recovery | PASS (SQLite); follow-up PostgreSQL rerun pending |
 | Runtime adapters, §14 | llama.cpp/vLLM/fake adapters | adapter contracts | PASS (mock); hardware pending |
 | Slurm, §15 | CLI/fake adapters, optional-QOS sbatch rendering, validated svc-llm Unix-socket helper | QOS modes, fixed-schema rejection, helper/current-user modes, submission and terminal-start reconciliation errors, guarded real-runtime tests | host foundation user-verified; orchestration rerun and installed-helper identity acceptance pending |
 | Store/cache/layout, §16–17 | config, deploy templates, scripts | dry-run review | PARTIAL; host pending |
-| Persistence/privacy, §18 | SQLAlchemy request + desired-profile repositories/Alembic | DB/idempotency/migration tests | PASS (SQLite); PostgreSQL pending |
+| Persistence/privacy, §18 | SQLAlchemy request + desired-profile repositories/Alembic; atomic unfinished-request recovery | DB/idempotency/migration and shutdown/restart recovery tests | PASS (SQLite); PostgreSQL exposed pre-fix stale rows, follow-up rerun pending |
 | Metrics/logs/alerts, §19 | Prometheus + redacted structured logging | metrics/privacy tests | PARTIAL; host alerts pending |
 | NFR-001–020 | systemd, state/recovery, adapters, config, runbooks | offline suites and dry-runs | PARTIAL |
 | Admin/user CLI, §21–22 | `admin_cli/*`, `agent_harness/cli.py` | config CLI + dry-run commands | PARTIAL |

@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -8,6 +9,8 @@ from llm_platform.orchestrator.reconciler import Reconciler
 from llm_platform.persistence.repositories import ControlPlaneStateRepository, RequestRepository
 from llm_platform.queueing.fair import FairRequestQueue, QueueItem
 from llm_platform.scheduler.planner import ResourcePlanner
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ControlPlane:
@@ -23,11 +26,13 @@ class ControlPlane:
         interval_seconds: float = 2,
         max_users: int = 3,
         max_pending_per_user: int = 20,
+        cleanup_timeout_seconds: float = 5,
     ) -> None:
         self.reconciler = reconciler
         self.planner = planner
         self.sessions = sessions
         self.interval_seconds = interval_seconds
+        self.cleanup_timeout_seconds = cleanup_timeout_seconds
         self.queue = FairRequestQueue(max_users, max_pending_per_user)
         self._profiles = {profile.name: profile for profile in profiles}
         self._desired_profile = "idle"
@@ -35,14 +40,22 @@ class ControlPlane:
         self._ready = asyncio.Condition()
         self._task: asyncio.Task[None] | None = None
         self._waiters: set[asyncio.Task[object]] = set()
+        self._cleanup_tasks: set[asyncio.Task[None]] = set()
         self._stopping = False
         self.orphan_job_ids: tuple[str, ...] = ()
 
     async def start(self) -> None:
         self._stopping = False
-        self.orphan_job_ids = await self.reconciler.recover()
         async with self.sessions() as session:
+            recovered = await RequestRepository(session).fail_unfinished(
+                error_code="gateway_restarted"
+            )
             persisted = await ControlPlaneStateRepository(session).desired_profile()
+        if recovered:
+            LOGGER.warning(
+                "terminalized unfinished requests during startup", extra={"count": recovered}
+            )
+        self.orphan_job_ids = await self.reconciler.recover()
         current = set(self.reconciler.instances)
         matching = [
             profile.name
@@ -72,6 +85,11 @@ class ControlPlane:
         waiters = tuple(self._waiters)
         if waiters:
             await asyncio.gather(*waiters, return_exceptions=True)
+        cleanup_tasks = tuple(self._cleanup_tasks)
+        if cleanup_tasks:
+            _, pending = await asyncio.wait(cleanup_tasks, timeout=self.cleanup_timeout_seconds)
+            for cleanup_task in pending:
+                cleanup_task.cancel()
         task = self._task
         if task is not None:
             with contextlib.suppress(asyncio.CancelledError):
@@ -87,6 +105,31 @@ class ControlPlane:
             waiter.cancel()
         if self._task is not None:
             self._task.cancel()
+
+    def _schedule_terminalization(self, request_id: str, error_code: str) -> None:
+        async def terminalize() -> None:
+            try:
+                async with asyncio.timeout(self.cleanup_timeout_seconds):
+                    async with self.sessions() as session:
+                        await RequestRepository(session).transition(
+                            request_id,
+                            {"queued", "assigned"},
+                            "cancelled",
+                            error_code=error_code,
+                        )
+            except BaseException:
+                LOGGER.exception("request terminalization failed", extra={"request_id": request_id})
+                raise
+
+        cleanup_task = asyncio.create_task(terminalize(), name=f"terminalize-request-{request_id}")
+        self._cleanup_tasks.add(cleanup_task)
+
+        def cleanup_done(task: asyncio.Task[None]) -> None:
+            self._cleanup_tasks.discard(task)
+            if not task.cancelled():
+                task.exception()
+
+        cleanup_task.add_done_callback(cleanup_done)
 
     def _profile_for(self, deployment_id: str) -> str:
         candidates = [
@@ -148,13 +191,10 @@ class ControlPlane:
             self.queue.assign(request_id)
         except asyncio.CancelledError:
             self.queue.cancel(request_id)
-            async with self.sessions() as session:
-                await RequestRepository(session).transition(
-                    request_id,
-                    {"queued", "assigned"},
-                    "cancelled",
-                    error_code="gateway_shutdown" if self._stopping else "request_cancelled",
-                )
+            self._schedule_terminalization(
+                request_id,
+                "gateway_shutdown" if self._stopping else "request_cancelled",
+            )
             raise
         except BaseException:
             self.queue.cancel(request_id)
