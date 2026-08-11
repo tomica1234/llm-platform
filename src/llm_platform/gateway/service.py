@@ -4,7 +4,7 @@ import time
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from llm_platform.auth.keys import ApiPrincipal
 from llm_platform.common.enums import BackendState
@@ -14,6 +14,9 @@ from llm_platform.routing.router import RouteRequest, RouteResult, RuleRouter, p
 from llm_platform.runtimes.base import RuntimeAdapter, RuntimeInstance
 from llm_platform.telemetry.logging import safe_request_log
 from llm_platform.telemetry.metrics import METRICS
+
+if TYPE_CHECKING:
+    from llm_platform.orchestrator.control_plane import ControlPlane
 
 LOGGER = logging.getLogger(__name__)
 BLOCKED_EXTENSION_FIELDS = frozenset(
@@ -38,6 +41,10 @@ class DeploymentRegistry:
     ) -> None:
         self.adapters[deployment_id] = adapter
         self.instances[deployment_id] = instance
+
+    def unregister(self, deployment_id: str) -> None:
+        self.adapters.pop(deployment_id, None)
+        self.instances.pop(deployment_id, None)
 
     def ready_ids(self) -> frozenset[str]:
         return frozenset(
@@ -98,12 +105,14 @@ class GatewayService:
         *,
         request_timeout_seconds: float = 600,
         config_revision: str = "development",
+        control_plane: "ControlPlane | None" = None,
     ) -> None:
         self.router = router
         self.registry = registry
         self.models = models
         self.request_timeout_seconds = request_timeout_seconds
         self.config_revision = config_revision
+        self.control_plane = control_plane
         self.limiter = ConcurrencyLimiter()
         self.route_history: dict[str, dict[str, Any]] = {}
 
@@ -130,12 +139,12 @@ class GatewayService:
             if model.enabled and model.model_id in principal.model_permissions
         ]
 
-    def select(
+    def route(
         self,
         payload: Mapping[str, Any],
         principal: ApiPrincipal,
         headers: Mapping[str, str],
-    ) -> SelectedBackend:
+    ) -> RouteResult:
         principal.require_scope("inference")
         blocked = BLOCKED_EXTENSION_FIELDS.intersection(payload)
         if blocked:
@@ -174,6 +183,33 @@ class GatewayService:
         METRICS.route_seconds.observe(time.monotonic() - started)
         if route.deployment.model_id not in principal.model_permissions:
             raise AuthorizationError("selected model is not permitted")
+        return route
+
+    def select(
+        self,
+        payload: Mapping[str, Any],
+        principal: ApiPrincipal,
+        headers: Mapping[str, str],
+    ) -> SelectedBackend:
+        return self.registry.resolve(self.route(payload, principal, headers))
+
+    async def _select_ready(
+        self,
+        payload: Mapping[str, Any],
+        principal: ApiPrincipal,
+        headers: Mapping[str, str],
+        request_id: str,
+    ) -> SelectedBackend:
+        route = self.route(payload, principal, headers)
+        if self.control_plane is not None:
+            await self.control_plane.wait_for_deployment(
+                route.deployment.deployment_id,
+                request_id,
+                principal.user_id,
+                str(payload.get("model", "auto")),
+                dict(payload),
+                timeout_seconds=self.request_timeout_seconds,
+            )
         return self.registry.resolve(route)
 
     async def complete(
@@ -184,12 +220,16 @@ class GatewayService:
         headers: Mapping[str, str],
         request_id: str,
     ) -> GatewayResult:
-        selected = self.select(payload, principal, headers)
+        selected = await self._select_ready(payload, principal, headers, request_id)
         self.record_route(request_id, selected)
         forwarded = dict(payload)
         forwarded["model"] = selected.route.model.model_id
         started = time.monotonic()
         try:
+            if self.control_plane is not None:
+                await self.control_plane.request_started(
+                    request_id, selected.route.deployment.deployment_id
+                )
             async with self.limiter.slot(principal):
                 async with asyncio.timeout(self.request_timeout_seconds):
                     body = await selected.adapter.proxy(
@@ -197,7 +237,16 @@ class GatewayService:
                     )
         except TimeoutError:
             await selected.adapter.cancel(selected.instance, request_id)
+            if self.control_plane is not None:
+                await self.control_plane.request_finished(request_id, failed=True)
             raise
+        except BaseException:
+            if self.control_plane is not None:
+                await self.control_plane.request_finished(request_id, failed=True)
+            raise
+        else:
+            if self.control_plane is not None:
+                await self.control_plane.request_finished(request_id)
         finally:
             METRICS.request_seconds.labels(
                 deployment=selected.route.deployment.deployment_id
@@ -220,22 +269,31 @@ class GatewayService:
         headers: Mapping[str, str],
         request_id: str,
     ) -> tuple[SelectedBackend, AsyncIterator[bytes]]:
-        selected = self.select(payload, principal, headers)
+        selected = await self._select_ready(payload, principal, headers, request_id)
         self.record_route(request_id, selected)
         forwarded = dict(payload)
         forwarded["model"] = selected.route.model.model_id
 
         async def generate() -> AsyncIterator[bytes]:
+            failed = True
             async with self.limiter.slot(principal):
                 try:
+                    if self.control_plane is not None:
+                        await self.control_plane.request_started(
+                            request_id, selected.route.deployment.deployment_id
+                        )
                     async for chunk in selected.adapter.stream(
                         selected.instance, path, forwarded, request_id
                     ):
                         yield chunk
+                    failed = False
                 except asyncio.CancelledError:
                     METRICS.cancellations.inc()
                     await selected.adapter.cancel(selected.instance, request_id)
                     raise
+                finally:
+                    if self.control_plane is not None:
+                        await self.control_plane.request_finished(request_id, failed=failed)
 
         return selected, generate()
 

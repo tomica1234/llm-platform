@@ -54,6 +54,19 @@ class ExternalRuntimeAdapter(RuntimeAdapter):
             process_id=process.pid,
         )
 
+    async def attach(
+        self, deployment: DeploymentConfig, allocation_id: str, instance_id: str
+    ) -> RuntimeInstance:
+        """Attach to a runtime whose process is owned by an existing Slurm allocation."""
+        await self.validate(deployment)
+        return RuntimeInstance(
+            instance_id=instance_id,
+            deployment_id=deployment.deployment_id,
+            base_url=f"http://{deployment.serving.host}:{deployment.serving.port}",
+            state=BackendState.STARTING,
+            allocation_id=allocation_id,
+        )
+
     async def health(self, instance: RuntimeInstance) -> bool:
         return await self._http.get_health(instance.base_url)
 

@@ -9,6 +9,7 @@ entries=(
   "svc-models:modelusers:0750:/srv/models"
   "svc-models:modelusers:0750:/srv/cache/huggingface/hub"
   "root:root:0755:/opt/llm-platform"
+  "root:root:0755:/opt/llm-platform/app/releases"
   "root:svc-control:0750:/etc/llm-platform"
 )
 for entry in "${entries[@]}"; do

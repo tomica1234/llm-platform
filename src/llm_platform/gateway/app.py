@@ -28,10 +28,13 @@ def error_body(error: PlatformError, request_id: str) -> dict[str, Any]:
 def create_app(
     service: GatewayService,
     key_store: KeyStore,
+    startup: Callable[[], Awaitable[None]] | None = None,
     shutdown: Callable[[], Awaitable[None]] | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        if startup is not None:
+            await startup()
         yield
         if shutdown is not None:
             await shutdown()
@@ -141,6 +144,11 @@ def create_app(
         user.require_scope("admin")
         return {
             "ready_deployments": sorted(service.registry.ready_ids()),
+            "orphan_slurm_jobs": (
+                list(service.control_plane.orphan_job_ids)
+                if service.control_plane is not None
+                else []
+            ),
             "config_revision": service.config_revision,
         }
 

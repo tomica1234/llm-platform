@@ -100,6 +100,26 @@ class FairRequestQueue:
         self._cleanup_user(item.user_id)
         return True
 
+    def assign(self, request_id: str) -> bool:
+        item = self._items.get(request_id)
+        if item is None or item.state is not QueueState.WAITING:
+            return False
+        queue = self._queues[item.queue_class].get(item.user_id)
+        if queue is not None:
+            self._queues[item.queue_class][item.user_id] = deque(
+                queued for queued in queue if queued.request_id != request_id
+            )
+        item.state = QueueState.ASSIGNED
+        self._cleanup_user(item.user_id)
+        return True
+
+    def complete(self, request_id: str) -> bool:
+        item = self._items.get(request_id)
+        if item is None or item.state is QueueState.CANCELLED:
+            return False
+        item.state = QueueState.COMPLETED
+        return True
+
     def _cleanup_user(self, user_id: str) -> None:
         has_pending = any(self._queues[kind].get(user_id) for kind in self._CLASS_ORDER)
         if not has_pending:

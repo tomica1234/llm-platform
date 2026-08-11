@@ -10,7 +10,7 @@ from llm_platform.config.schema import DeploymentConfig, PlatformConfig
 def test_example_bundle_validates() -> None:
     bundle = load_bundle(Path("config"))
     assert bundle.platform.queue.max_users == 3
-    assert len(bundle.deployments.deployments) == 3
+    assert len(bundle.deployments.deployments) == 5
     assert len(bundle.users.users) == 1
     assert not any(item.auto_eligible for item in bundle.deployments.deployments)
 

@@ -35,22 +35,27 @@ def test_sbatch_template_uses_validated_instance_comment(deployment_factory: Any
     deployment = deployment_factory()
     script = render_sbatch_script(deployment, "instance-qwen")
     assert "#SBATCH --comment=instance-qwen" in script
+    assert "#SBATCH --uid=svc-llm" in script
+    assert "/opt/llm-platform/app/current/bin/llm-backend" in script
     assert "--deployment qwen-vllm-1gpu" in script
     with pytest.raises(ConfigurationError):
         render_sbatch_script(deployment, "bad\n#SBATCH --gres=gpu:99")
 
 
 @pytest.mark.asyncio
-async def test_cli_submit_and_list_preserve_instance_mapping(deployment_factory: Any) -> None:
+async def test_cli_submit_and_list_preserve_instance_mapping(
+    deployment_factory: Any, tmp_path: Path
+) -> None:
     runner = StubRunner(
         [result("1234;cluster\n"), result("1234|RUNNING|llm-qwen-vllm-1gpu|instance-qwen\n")]
     )
     adapter = CliSlurmAdapter(runner)
     deployment = deployment_factory()
     submitted = await adapter.submit_backend(
-        deployment, "instance-qwen", Path("/run/llm-platform/backend.sbatch")
+        deployment, "instance-qwen", tmp_path / "backend.sbatch"
     )
     assert submitted.job_id == "1234"
+    assert (tmp_path / "backend.sbatch").is_file()
     jobs = await adapter.list_jobs()
     assert jobs[0].instance_id == "instance-qwen"
     assert runner.argv[0][:2] == ("sbatch", "--parsable")
@@ -58,9 +63,9 @@ async def test_cli_submit_and_list_preserve_instance_mapping(deployment_factory:
 
 
 @pytest.mark.asyncio
-async def test_cli_rejects_non_numeric_job_id(deployment_factory: Any) -> None:
+async def test_cli_rejects_non_numeric_job_id(deployment_factory: Any, tmp_path: Path) -> None:
     adapter = CliSlurmAdapter(StubRunner([result("not-a-job\n")]))
     with pytest.raises(RuntimeError, match="invalid job ID"):
         await adapter.submit_backend(
-            deployment_factory(), "instance-qwen", Path("/run/backend.sbatch")
+            deployment_factory(), "instance-qwen", tmp_path / "backend.sbatch"
         )

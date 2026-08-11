@@ -1,25 +1,32 @@
 # Implementation status
 
-Last updated: 2026-08-07
+Last updated: 2026-08-11
 
 State vocabulary: `DONE`, `PARTIAL`, `IN_PROGRESS`, `BLOCKED`, `PENDING`.
 `DONE (offline)` means the repository/software completion condition passed using fake
 adapters; it does not imply target-host or real-model acceptance.
 
-## Environment inventory
+## Target hardware evidence supplied by the operator
+
+The operator reports Ubuntu 26.04, Slurm 25.11.2/MUNGE, cgroup v2 device
+confinement, three RTX 5060 Ti 16 GB GPUs, successful 1/2/3-GPU allocations,
+service identities and production directories, llama.cpp b10356 at commit
+`0666ad2b2b2452668733729e8b54234f5964643a`, vLLM 0.27.0 with torch
+2.13.0+cu132, and successful OpenAI-compatible llama.cpp/vLLM smoke requests through
+Slurm as `svc-llm`. This is operator-supplied evidence; this change did not rerun or
+independently inspect the privileged host configuration.
+
+## Development environment inventory
 
 - Development path: `$HOME/wip/llm-platform`
-- Host: macOS 26.4, arm64 development workstation; no production paths modified.
-- Python: pyenv Python 3.13.13 (project target is Python 3.12+).
+- Host for this implementation run: Linux workspace; no production paths modified.
+- Python: 3.14.4 virtual environment (project target is Python 3.12+).
 - `uv`: not detected; isolated stdlib venv/pip used and `requirements.lock` captured.
-- NVIDIA/Slurm/cgroup: `nvidia-smi`, `scontrol`, `sinfo`, `squeue`, `sbatch`, and
-  `sacct` unavailable; cgroup v2 not detected.
-- Git: repository initialized on `main`; global author name/email not configured, so
-  no local phase commits were created. No remote was added and nothing was pushed.
+- Work is on `feature/phase3-real-hardware-integration`; nothing was pushed.
 
 ## Phase status
 
-### Phase 0 — Repository foundation: DONE (offline), target foundation PENDING
+### Phase 0 — Repository foundation: DONE; target foundation OPERATOR-VERIFIED
 
 Created the complete scaffold, authoritative requirements, contributor rules,
 strict Pydantic schemas and example configuration, quality tooling, fake runtime and
@@ -29,19 +36,19 @@ the authoritative block (SHA-256
 `14841bdf29a0872a75594c7bf345051850c7c6baaee246f300d6f5f411e37e83`).
 
 Target-host GPU recognition, service accounts/directories, cgroup v2, MUNGE/Slurm,
-and 1/2/3-GPU Slurm jobs remain PENDING. They require the Linux GPU server and
-privileged reviewed application; this development run deliberately did not perform
-them.
+and 1/2/3-GPU Slurm jobs are reported verified by the operator. No privileged changes
+were made during this implementation.
 
-### Phase 1 — Runtime layer: DONE (mock contract), hardware PENDING
+### Phase 1 — Runtime layer: DONE (mock contract); runtime smoke OPERATOR-VERIFIED
 
 Implemented the common adapter contract, typed argument-array launch specifications,
 llama.cpp and vLLM adapters, process/HTTP abstractions, fake adapter/backend,
 health/metrics/proxy/SSE/cancel lifecycle, backend launcher, exact-version manifest,
 and benchmark manifest/runner. Contract and command tests pass.
 
-Real llama.cpp/vLLM builds, representative model starts, memory/throughput/tool
-parser tests, sleep/wake capability validation, and GPU benchmarks are PENDING.
+Real llama.cpp/vLLM installs and Qwen3-0.6B API smoke starts are operator-verified.
+Representative production benchmarks, memory/throughput/tool parser acceptance, and
+sleep/wake capability decisions remain PENDING.
 
 ### Phase 2 — Gateway and manual routing: DONE (offline), live compatibility PENDING
 
@@ -55,20 +62,21 @@ integration tests.
 Real Codex CLI, real llama.cpp/vLLM, PostgreSQL restart, LAN/VPN/TLS, and live client
 disconnect behavior remain PENDING.
 
-### Phase 3 — Queue, Slurm and GPU orchestration: PARTIAL
+### Phase 3 — Queue, Slurm and GPU orchestration: IN_PROGRESS
 
-Implemented a three-user fair queue, starvation guard, independent cancellation,
-resource/profile planner, protected-job capacity check, backend state machine,
-idempotent reconciler, active-stream drain, 2+1 ↔ 3-GPU fake transitions, fake and
-CLI Slurm adapters, validated sbatch generation with job↔instance mapping, orphan
-detection, dwell/switch-rate policy, circuit breaker, persistent request state, and
-dry-run administrative commands.
+The Gateway now creates a long-running queue/planner/reconciler loop. Production
+constructs llama.cpp/vLLM adapters dynamically, uses `CliSlurmAdapter`, renders the
+actual sbatch script, launches only through Slurm as `svc-llm`, attaches proxy/health
+clients without a second local process, publishes only READY instances, drains active
+requests before cancellation, and applies retry-budget circuit breaking. Startup
+reconciliation reconstructs enabled known instances from existing `svc-llm` jobs and
+preserves an exact matching profile. Unknown/disabled jobs are reported as orphans.
 
-Remaining software work: connect unavailable-gateway requests to the durable queue
-and reconciler as one long-running control loop; persist desired profile/switch
-history transactionally; implement opportunistic batch requeue policy; complete live
-admin API mutations and failure/retry recovery. Real Slurm/GRES/cgroup/accounting and
-restart tests are PENDING.
+Balanced, strong-shared, and idle profiles remain configurable pending benchmarked
+production model registration. Disabled Qwen3-0.6B llama.cpp/vLLM smoke deployments
+and guarded end-to-end hardware tests were added. Remaining work includes executing
+those integration tests on the target, durable switch history, opportunistic batch
+requeue, and live admin mutations. The desired profile is persisted.
 
 ### Phase 4 — Per-user agent harness: PARTIAL
 
@@ -100,7 +108,22 @@ golden task corpus, and sufficient samples do not yet exist.
 
 ## Verification evidence
 
-Commands actually run in this workspace:
+Commands actually run in this workspace for the 2026-08-11 change are below.
+Hardware tests are guarded and were not run in this unprivileged workspace; no new
+real-GPU claim is made from this test run.
+
+- `make check` — PASS: Ruff and strict mypy passed; 30 unit, 12 integration,
+  and 6 security tests passed; aggregate 48 non-hardware tests passed with 70.63%
+  branch-aware coverage.
+- `.venv/bin/python -m pytest -m hardware -q` — 4 SKIPPED by the explicit opt-in
+  guard, including both real-runtime orchestrator/Gateway cases.
+- Alembic upgrade/current against a dedicated temporary SQLite database — PASS at
+  revision `0002 (head)`.
+- `llmctl config validate --config-dir config` — PASS (3 models, 5 deployments).
+- shell syntax checks and `deploy/install-layout.sh --dry-run` — PASS; no production
+  path was modified.
+
+Earlier baseline evidence:
 
 - `bash -n scripts/*.sh deploy/*.sh deploy/slurm/*.sh` — PASS.
 - `./scripts/inventory-host.sh` — PASS (read-only; target tooling unavailable as above).

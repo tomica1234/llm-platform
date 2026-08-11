@@ -145,6 +145,13 @@ class GpuProfileRow(Base):
     config_revision: Mapped[str] = mapped_column(String(128))
 
 
+class ControlPlaneStateRow(Base):
+    __tablename__ = "control_plane_state"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default="singleton")
+    desired_profile: Mapped[str] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class BenchmarkRow(Base):
     __tablename__ = "benchmarks"
     id: Mapped[str] = mapped_column(String(128), primary_key=True)

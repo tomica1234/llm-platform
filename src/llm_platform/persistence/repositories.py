@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from llm_platform.persistence.models import InferenceRequestRow, utc_now
+from llm_platform.persistence.models import ControlPlaneStateRow, InferenceRequestRow, utc_now
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +100,24 @@ class RequestRepository:
         return RequestRecord(
             row.id, row.user_id, row.state, row.requested_model, row.selected_deployment
         )
+
+
+class ControlPlaneStateRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def desired_profile(self) -> str | None:
+        row = await self.session.get(ControlPlaneStateRow, "singleton")
+        return None if row is None else row.desired_profile
+
+    async def set_desired_profile(self, profile: str) -> None:
+        row = await self.session.get(ControlPlaneStateRow, "singleton")
+        if row is None:
+            self.session.add(ControlPlaneStateRow(id="singleton", desired_profile=profile))
+        else:
+            row.desired_profile = profile
+            row.updated_at = utc_now()
+        await self.session.commit()
 
 
 def normalize_datetime(value: datetime | None) -> datetime | None:

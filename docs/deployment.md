@@ -18,13 +18,39 @@ commented inventory placeholder before application.
 3. Merge Slurm snippets, validate controller/daemon configuration, and run 1/2/3-GPU
    diagnostic jobs. Do not preempt non-preemptible research jobs.
 4. Build exact llama.cpp and vLLM releases; record source/package and checksums.
-5. Install a versioned gateway/harness artifact and create configuration from
-   examples. Put secrets in a separate protected environment file.
+5. Install one Python environment at
+   `/opt/llm-platform/app/releases/<release>`, atomically point
+   `/opt/llm-platform/app/current` to it, and create configuration from examples.
+   Keep runtime environments under `/opt/llm-platform/runtimes/*/current`. Put
+   secrets in a separate protected environment file.
 6. Run Alembic against a backed-up PostgreSQL database.
 7. Install systemd/tmpfiles/logrotate definitions, inspect their security properties,
    then enable services in a scheduled window.
 8. Register models disabled, benchmark, accept, then enable routing.
 9. Execute AT-001–AT-025 and record hardware/runtime versions in compatibility docs.
+
+Do not install or enable a backend systemd service. Confirm the reviewed Slurm policy
+allows `svc-control` to submit and cancel only platform backend jobs whose effective
+user is `svc-llm`. Test that `squeue --jobs <id> --format %u` reports `svc-llm`.
+
+## Qwen3 0.6B hardware smoke configuration
+
+The example model and `smoke-qwen3-{llama,vllm}-1gpu` deployments are disabled by
+default and excluded from automatic production routing. Copy the configuration,
+correct the two `/srv/models` artifact paths to the installed site paths, verify the
+fixed runtime versions, then explicitly enable the smoke model and only the smoke
+deployment being tested. Run:
+
+```bash
+LLM_PLATFORM_HARDWARE_TESTS=1 \
+LLM_PLATFORM_HARDWARE_CONFIG_DIR=/etc/llm-platform \
+make test-hardware
+```
+
+The test starts each backend through the orchestrator and Slurm, verifies READY and
+the `svc-llm` owner, routes a Chat Completions request, drains/stops it, and confirms
+the Slurm job disappeared. Disable the smoke entries again after acceptance. The
+smoke result is not a production model benchmark or registration decision.
 
 All supplied scripts default to dry-run or refuse `--apply` until a site-specific hook
 has been reviewed. This is intentional: directory ownership, package sources, service

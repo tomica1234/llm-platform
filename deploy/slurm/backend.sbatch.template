@@ -3,9 +3,10 @@
 #SBATCH --job-name=llm-DEPLOYMENT_ID
 #SBATCH --comment=INSTANCE_ID
 #SBATCH --qos=agent-service
+#SBATCH --uid=svc-llm
 #SBATCH --gres=gpu:GPU_COUNT
 #SBATCH --cpus-per-task=CPU_COUNT
 #SBATCH --mem=RAM_GB
 set -euo pipefail
-exec /opt/llm-platform/gateway/current/bin/llm-backend \
-  --instance INSTANCE_ID --deployment DEPLOYMENT_ID
+exec /opt/llm-platform/app/current/bin/llm-backend \
+  --instance INSTANCE_ID --deployment DEPLOYMENT_ID --config-dir /etc/llm-platform

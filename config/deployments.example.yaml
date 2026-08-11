@@ -50,3 +50,37 @@ deployments:
       multimodal: false
     benchmark: null
     enabled: false
+  - deployment_id: smoke-qwen3-llama-1gpu
+    model_id: qwen3-0.6b-smoke
+    runtime: llama_cpp
+    artifact: /srv/models/gguf/Qwen3-0.6B/Qwen3-0.6B-Q8_0.gguf
+    executable: /opt/llm-platform/runtimes/llama.cpp/current/llama-server
+    runtime_version: b10356-0666ad2b2b2452668733729e8b54234f5964643a
+    resources: {gpus: 1, cpus: 4, ram_gb: 8, vram_gb: 4}
+    serving: {concurrency: 1, context_limit: 4096, host: 127.0.0.1, port: 8301}
+    launch_args: ["--metrics"]
+    environment: {}
+    capabilities:
+      max_context: 4096
+      tool_calling: false
+      structured_output: false
+      multimodal: false
+    benchmark: null
+    enabled: false
+  - deployment_id: smoke-qwen3-vllm-1gpu
+    model_id: qwen3-0.6b-smoke
+    runtime: vllm
+    artifact: /srv/models/hf/Qwen3-0.6B
+    executable: /opt/llm-platform/runtimes/vllm/current/bin/vllm
+    runtime_version: 0.27.0-torch-2.13.0+cu132
+    resources: {gpus: 1, cpus: 4, ram_gb: 12, vram_gb: 8}
+    serving: {concurrency: 1, context_limit: 4096, host: 127.0.0.1, port: 8302}
+    launch_args: ["--gpu-memory-utilization", "0.75"]
+    environment: {HF_HOME: /srv/cache/huggingface}
+    capabilities:
+      max_context: 4096
+      tool_calling: false
+      structured_output: false
+      multimodal: false
+    benchmark: null
+    enabled: false

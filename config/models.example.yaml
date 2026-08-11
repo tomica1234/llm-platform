@@ -27,3 +27,17 @@ models:
     tags: [coding, fast]
     known_constraints: [artifact and runtime compatibility require validation]
     enabled: false
+  - model_id: qwen3-0.6b-smoke
+    display_name: Qwen3 0.6B (hardware smoke test only)
+    family: qwen
+    revision: site-installed-smoke-artifact
+    license: review-installed-artifact
+    capabilities:
+      max_context: 4096
+      tool_calling: false
+      structured_output: false
+      multimodal: false
+    quality_score: 0.1
+    tags: [smoke-test-only]
+    known_constraints: [never enable as a production automatic-routing model]
+    enabled: false
