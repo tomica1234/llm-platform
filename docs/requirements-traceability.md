@@ -12,10 +12,10 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 | Gateway API/errors/auth, §9 | `gateway/*`, `auth/*` | `test_gateway.py`, `test_auth.py` | PASS (fake) |
 | Router, §10 | `routing/router.py` | `test_routing.py` | PASS (fake) |
 | Model/deployment registry, §11 | strict config + SQL models | config tests, validation CLI | DONE (offline) |
-| Planner/state transitions, §12 | scheduler + long-running control plane + reconciler | scheduler/orchestration/recovery tests | PASS (fake); hardware test guarded |
+| Planner/state transitions, §12 | scheduler + long-running control plane + reconciler | scheduler/orchestration/recovery tests, including structured immediate Slurm startup failure and bounded allocation-release polling on stop | PASS (fake); hardware test guarded |
 | Fair queue/cancel, §13 | `queueing/fair.py` + persistent request repository | three-user/cancel/starvation tests | PASS (metadata durable) |
 | Runtime adapters, §14 | llama.cpp/vLLM/fake adapters | adapter contracts | PASS (mock); hardware pending |
-| Slurm, §15 | CLI/fake adapters, optional-QOS sbatch rendering, validated svc-llm Unix-socket helper | QOS modes, fixed-schema rejection, helper/current-user modes, reconciliation errors, guarded real-runtime tests | host foundation user-verified; orchestration rerun and installed-helper identity acceptance pending |
+| Slurm, §15 | CLI/fake adapters, optional-QOS sbatch rendering, validated svc-llm Unix-socket helper | QOS modes, fixed-schema rejection, helper/current-user modes, submission and terminal-start reconciliation errors, guarded real-runtime tests | host foundation user-verified; orchestration rerun and installed-helper identity acceptance pending |
 | Store/cache/layout, §16–17 | config, deploy templates, scripts | dry-run review | PARTIAL; host pending |
 | Persistence/privacy, §18 | SQLAlchemy request + desired-profile repositories/Alembic | DB/idempotency/migration tests | PASS (SQLite); PostgreSQL pending |
 | Metrics/logs/alerts, §19 | Prometheus + redacted structured logging | metrics/privacy tests | PARTIAL; host alerts pending |
@@ -34,9 +34,9 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 | AT-003 | exact three-user round robin | PASS |
 | AT-004 | forced llama.cpp never falls back | PASS (fake) |
 | AT-005 | forced vLLM route header + guarded Slurm smoke | PASS (fake); hardware integration test added |
-| AT-006 | explicit runtime failure states/retry primitives | PARTIAL; crash recovery pending |
+| AT-006 | explicit runtime failure states/retry primitives; immediate terminal Slurm jobs surface structured start failures | PARTIAL; real crash recovery rerun pending |
 | AT-007 | circuit breaker stops restart loop | PASS policy; real OOM pending |
-| AT-008 | active request drains before profile stop | PASS (fake) |
+| AT-008 | active request drains before profile stop; stopped is withheld until Slurm releases the allocation | PASS (fake); real shutdown rerun pending |
 | AT-009 | balanced drains then 3-GPU shared starts | PASS (fake) |
 | AT-010 | protected GPU capacity blocks switch | PASS (fake) |
 | AT-011 | QOS template documents opportunistic requeue | PENDING implementation/host |

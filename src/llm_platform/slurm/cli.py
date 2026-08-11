@@ -47,8 +47,6 @@ def render_sbatch_script(
     validate_identifier(deployment.deployment_id, "deployment ID")
     validate_identifier(instance_id, "instance ID")
     directives = [
-        "#!/usr/bin/env bash",
-        "set -euo pipefail",
         f"#SBATCH --job-name=llm-{deployment.deployment_id}",
         f"#SBATCH --comment={instance_id}",
         f"#SBATCH --gres=gpu:{deployment.resources.gpus}",
@@ -63,7 +61,7 @@ def render_sbatch_script(
             raise ConfigurationError("invalid Slurm output path")
         directives.append(f"#SBATCH --output={output_path}")
     return "\n".join(
-        directives
+        ["#!/usr/bin/env bash", *directives, "", "set -euo pipefail"]
         + [
             "# Generated template: the service wrapper resolves the registered deployment.",
             (

@@ -43,5 +43,9 @@ def run_backend(
     os.execve(spec.argv[0], spec.argv, environment)  # noqa: S606
 
 
-if __name__ == "__main__":
+def main() -> None:
     typer.run(run_backend)
+
+
+if __name__ == "__main__":
+    main()

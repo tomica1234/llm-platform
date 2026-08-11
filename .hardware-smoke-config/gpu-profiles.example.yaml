@@ -1,0 +1,22 @@
+profiles:
+  - name: balanced
+    deployments: [dvf-llama-2gpu, qwen-vllm-1gpu]
+    protected_non_preemptible: true
+  - name: strong-shared
+    deployments: [dvf-llama-3gpu-shared]
+    protected_non_preemptible: true
+  - name: implementation-burst
+    deployments: [qwen-vllm-1gpu]
+    protected_non_preemptible: true
+  - name: idle
+    deployments: []
+    protected_non_preemptible: true
+  - name: maintenance
+    deployments: []
+    protected_non_preemptible: true
+  - name: smoke-llama
+    deployments: [smoke-qwen3-llama-1gpu]
+    protected_non_preemptible: true
+  - name: smoke-vllm
+    deployments: [smoke-qwen3-vllm-1gpu]
+    protected_non_preemptible: true

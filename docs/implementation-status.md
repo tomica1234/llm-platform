@@ -72,6 +72,9 @@ clients without a second local process, publishes only READY instances, drains a
 requests before cancellation, and applies retry-budget circuit breaking. Startup
 reconciliation reconstructs enabled known instances from existing `svc-llm` jobs and
 preserves an exact matching profile. Unknown/disabled jobs are reported as orphans.
+Stop reconciliation now waits asynchronously for Slurm to report the allocation gone
+or terminal before reporting a deployment stopped; a bounded timeout produces a
+structured stop failure and retains the instance for later reconciliation.
 
 Balanced, strong-shared, and idle profiles remain configurable pending benchmarked
 production model registration. Disabled Qwen3-0.6B llama.cpp/vLLM smoke deployments
@@ -113,6 +116,32 @@ Commands actually run in this workspace for the 2026-08-11 change are below.
 Hardware tests are guarded and were not run in this unprivileged workspace; no new
 real-GPU claim is made from this test run.
 
+- Slurm shutdown synchronization fix — PASS: 7 focused orchestration integration
+  tests (`pytest tests/integration/test_orchestration.py -q -p no:cov`) cover
+  active-request draining, delayed `RUNNING` cancellation, timeout failure, and
+  already-gone idempotency. A combined orchestration/control-plane run completed its
+  test bodies but reproduced the known async teardown hang and was interrupted. The
+  guarded hardware test was not run in this workspace. Ruff format/lint, strict mypy,
+  and `git diff --check` PASS.
+
+- Slurm sbatch directive-order fix — PASS: 27 focused CLI/helper tests verify the
+  shebang remains first, every required and optional `#SBATCH` directive precedes
+  `set -euo pipefail`, and both current-user and helper submission modes retain QOS
+  behavior. Ruff format/lint and strict mypy PASS (105 files; 59 source files).
+- Backend entry-point/startup-failure fix — focused Ruff format/lint PASS; 1 console
+  entry-point unit test and 4 orchestration integration tests PASS. The integration
+  coverage includes a submitted Slurm job that immediately enters `FAILED`, increments
+  the circuit breaker, and returns a structured reconciliation `start` failure.
+- Editable reinstall — PASS with `pip install --no-build-isolation --no-deps -e .`.
+  `.venv/bin/llm-backend --help`, installed `--print-spec`, and the equivalent
+  `python -m llm_platform.runtimes.backend_main --print-spec` invocation all PASS.
+  The initial build-isolated reinstall attempted an unavailable offline build dependency;
+  no network package was installed.
+- `make check` — STARTED: Ruff and strict mypy passed; the unit suite again stalled in
+  async SQLite tests after the first three authentication tests and was interrupted.
+  A follow-up unit run excluding the previously identified authentication test advanced
+  through the new console-entry-point test and config tests, then also stalled in the
+  async persistence tests. No full-suite or aggregate-coverage PASS is claimed.
 - Slurm helper/CLI coverage suite — PASS: 26 tests covering the fixed helper protocol,
   reviewed-deployment resolution, injection rejection, Unix stream handling, optional
   QOS, current-user and production-helper submission, and Slurm failure propagation;

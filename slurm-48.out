@@ -1,0 +1,20 @@
+0.00.161.243 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.233.261 W srv  llama_server: -----------------
+0.00.233.263 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+0.00.233.263 W srv  llama_server: this can be a security risk (cross-origin attacks)
+0.00.233.263 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+0.00.233.263 W srv  llama_server: -----------------
+0.00.234.599 I srv    load_model: loading model '/srv/models/gguf/qwen3-0.6b/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf'
+0.00.424.749 W load: control-looking token: 128247 '</s>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.904.256 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 4096, kv_unified = 'true'
+0.00.914.951 I srv  llama_server: model loaded
+0.00.914.956 I srv  llama_server: listening on http://127.0.0.1:8301
+0.01.094.272 I slot get_availabl: id  3 | task -1 | selected slot by LRU, t_last = -1
+0.01.094.333 I slot launch_slot_: id  3 | task 0 | processing task, is_child = 0
+0.01.127.351 I slot print_timing: id  3 | task 0 | prompt eval time =      12.31 ms /    12 tokens (    1.03 ms per token,   974.58 tokens per second)
+0.01.127.354 I slot print_timing: id  3 | task 0 |        eval time =      20.68 ms /     8 tokens (    2.58 ms per token,   386.94 tokens per second)
+0.01.127.354 I slot print_timing: id  3 | task 0 |       total time =      32.99 ms /    20 tokens
+0.01.127.357 I slot print_timing: id  3 | task 0 |    graphs reused =          7
+0.01.127.380 I slot      release: id  3 | task 0 | stop processing: n_tokens = 19, truncated = 0
+[2026-08-11T19:37:56.057] error: *** JOB 48 ON makers CANCELLED AT 2026-08-11T19:37:56 DUE to SIGNAL Terminated ***
+0.01.131.157 I srv    operator(): operator(): cleaning up before exit...

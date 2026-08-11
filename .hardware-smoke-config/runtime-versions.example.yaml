@@ -1,0 +1,8 @@
+llama_cpp:
+  source_url: https://github.com/ggml-org/llama.cpp.git
+  revision: SET_REVIEWED_COMMIT
+  build_options: [GGML_CUDA=ON]
+vllm:
+  package: vllm
+  version: SET_REVIEWED_VERSION
+  constraints_sha256: SET_AFTER_REVIEW

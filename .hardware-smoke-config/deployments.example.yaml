@@ -1,0 +1,146 @@
+deployments:
+- deployment_id: dvf-llama-2gpu
+  model_id: dvf
+  runtime: llama_cpp
+  artifact: /srv/models/gguf/dvf/benchmark-required/model.gguf
+  executable: /opt/llm-platform/runtimes/llama.cpp/current/llama-server
+  runtime_version: benchmark-required
+  resources:
+    gpus: 2
+    cpus: 16
+    ram_gb: 96
+    vram_gb: 48
+  serving:
+    concurrency: 1
+    context_limit: 32768
+    host: 127.0.0.1
+    port: 8101
+  launch_args:
+  - --parallel
+  - '1'
+  - --metrics
+  environment: {}
+  capabilities:
+    max_context: 32768
+    tool_calling: true
+    structured_output: true
+    multimodal: false
+  benchmark: null
+  enabled: false
+- deployment_id: dvf-llama-3gpu-shared
+  model_id: dvf
+  runtime: llama_cpp
+  artifact: /srv/models/gguf/dvf/benchmark-required/model.gguf
+  executable: /opt/llm-platform/runtimes/llama.cpp/current/llama-server
+  runtime_version: benchmark-required
+  resources:
+    gpus: 3
+    cpus: 20
+    ram_gb: 96
+    vram_gb: 72
+  serving:
+    concurrency: 3
+    context_limit: 32768
+    host: 127.0.0.1
+    port: 8102
+  launch_args:
+  - --parallel
+  - '3'
+  - --metrics
+  environment: {}
+  capabilities:
+    max_context: 32768
+    tool_calling: true
+    structured_output: true
+    multimodal: false
+  benchmark: null
+  enabled: false
+- deployment_id: qwen-vllm-1gpu
+  model_id: qwen-main
+  runtime: vllm
+  artifact: /srv/models/hf/qwen-main/benchmark-required
+  executable: /opt/llm-platform/runtimes/vllm/current/bin/vllm
+  runtime_version: benchmark-required
+  resources:
+    gpus: 1
+    cpus: 8
+    ram_gb: 24
+    vram_gb: 24
+  serving:
+    concurrency: 2
+    context_limit: 32768
+    host: 127.0.0.1
+    port: 8201
+  launch_args:
+  - --gpu-memory-utilization
+  - '0.90'
+  environment: {}
+  capabilities:
+    max_context: 32768
+    tool_calling: true
+    structured_output: true
+    multimodal: false
+  benchmark: null
+  enabled: false
+- deployment_id: smoke-qwen3-llama-1gpu
+  model_id: qwen3-0.6b-smoke
+  runtime: llama_cpp
+  artifact: /srv/models/gguf/qwen3-0.6b/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf
+  executable: /opt/llm-platform/runtimes/llama.cpp/current/llama-server
+  runtime_version: b10356-0666ad2b2b2452668733729e8b54234f5964643a
+  resources:
+    gpus: 1
+    cpus: 4
+    ram_gb: 8
+    vram_gb: 4
+  serving:
+    concurrency: 1
+    context_limit: 4096
+    host: 127.0.0.1
+    port: 8301
+  launch_args:
+  - --jinja
+  - --metrics
+  - -ngl
+  - all
+  environment: {}
+  capabilities:
+    max_context: 4096
+    tool_calling: false
+    structured_output: false
+    multimodal: false
+  benchmark: null
+  enabled: false
+- deployment_id: smoke-qwen3-vllm-1gpu
+  model_id: qwen3-0.6b-smoke
+  runtime: vllm
+  artifact: /srv/models/hf/qwen3-0.6b/c1899de289a04d12100db370d81485cdf75e47ca
+  executable: /opt/llm-platform/runtimes/vllm/current/bin/vllm
+  runtime_version: 0.27.0-torch-2.13.0+cu132
+  resources:
+    gpus: 1
+    cpus: 4
+    ram_gb: 12
+    vram_gb: 8
+  serving:
+    concurrency: 1
+    context_limit: 4096
+    host: 127.0.0.1
+    port: 8302
+  launch_args:
+  - --gpu-memory-utilization
+  - '0.50'
+  - --generation-config
+  - vllm
+  environment:
+    HF_HOME: /home/shunta/.cache/llm-platform-hw/huggingface
+    VLLM_CACHE_ROOT: /home/shunta/.cache/llm-platform-hw/vllm
+    TORCH_HOME: /home/shunta/.cache/llm-platform-hw/torch
+    TRITON_CACHE_DIR: /home/shunta/.cache/llm-platform-hw/triton
+  capabilities:
+    max_context: 4096
+    tool_calling: false
+    structured_output: false
+    multimodal: false
+  benchmark: null
+  enabled: true

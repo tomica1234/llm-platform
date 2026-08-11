@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/shunta/wip/llm-platform/.venv/bin/llm-backend", line 6, in <module>
+    sys.exit(run_backend())
+             ~~~~~~~~~~~^^
+TypeError: run_backend() missing 2 required positional arguments: 'instance' and 'deployment'

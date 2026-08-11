@@ -40,3 +40,6 @@ LLM_PLATFORM_HARDWARE_CONFIG_DIR=/absolute/path/to/reviewed-smoke-config \
 ```
 
 Submission assertion failures include the helper or `sbatch` stderr in the test output.
+Jobs that submit successfully but terminate before becoming healthy are reported as
+structured `start` failures with their Slurm job ID and observed terminal state (or as
+an early exit if the job has already left `squeue`).

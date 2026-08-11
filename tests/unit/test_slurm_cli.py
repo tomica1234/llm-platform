@@ -44,6 +44,25 @@ def test_sbatch_template_uses_validated_instance_comment(deployment_factory: Any
         render_sbatch_script(deployment, "bad\n#SBATCH --gres=gpu:99")
 
 
+def test_sbatch_directives_precede_first_shell_command(deployment_factory: Any) -> None:
+    script = render_sbatch_script(
+        deployment_factory(),
+        "instance-qwen",
+        qos="agent-service",
+        output_path=Path("/tmp/instance-qwen.log"),
+    )
+    lines = script.splitlines()
+
+    assert lines[0] == "#!/usr/bin/env bash"
+    first_shell_line = next(
+        index
+        for index, line in enumerate(lines[1:], start=1)
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+    assert lines[first_shell_line] == "set -euo pipefail"
+    assert all(not line.lstrip().startswith("#SBATCH") for line in lines[first_shell_line + 1 :])
+
+
 def test_sbatch_template_includes_configured_qos(deployment_factory: Any) -> None:
     script = render_sbatch_script(deployment_factory(), "instance-qwen", qos="agent-service")
     assert "#SBATCH --qos=agent-service" in script

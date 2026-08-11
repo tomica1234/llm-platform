@@ -11,7 +11,7 @@ from llm_platform.runtimes.base import Allocation, RuntimeAdapter, RuntimeInstan
 from llm_platform.runtimes.external import ExternalRuntimeAdapter
 from llm_platform.scheduler.planner import ProfilePlan
 from llm_platform.scheduler.policy import CircuitBreaker
-from llm_platform.slurm.base import SlurmAdapter
+from llm_platform.slurm.base import SlurmAdapter, SlurmJobState
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +39,8 @@ class Reconciler:
         *,
         drain_timeout: float = 300,
         health_timeout: float = 30,
+        termination_timeout: float = 30,
+        termination_poll_interval: float = 0.1,
         registry: DeploymentRegistry | None = None,
         slurm_managed_runtime: bool = False,
         retry_budget: int = 3,
@@ -50,6 +52,12 @@ class Reconciler:
         self.slurm = slurm
         self.drain_timeout = drain_timeout
         self.health_timeout = health_timeout
+        if termination_timeout <= 0:
+            raise ValueError("termination_timeout must be positive")
+        if termination_poll_interval <= 0:
+            raise ValueError("termination_poll_interval must be positive")
+        self.termination_timeout = termination_timeout
+        self.termination_poll_interval = termination_poll_interval
         self.registry = registry
         self.slurm_managed_runtime = slurm_managed_runtime
         self.script_directory = script_directory
@@ -67,27 +75,59 @@ class Reconciler:
         if self.registry is not None:
             self.registry.unregister(deployment_id)
 
-    async def _wait_until_ready(self, deployment_id: str, instance: RuntimeInstance) -> bool:
+    async def _wait_until_ready(
+        self, deployment_id: str, instance: RuntimeInstance
+    ) -> tuple[str | None, bool]:
         adapter = self.runtime_adapters[deployment_id]
         deadline = self.clock() + self.health_timeout
         instance.state = BackendState.STARTING
         while self.clock() < deadline:
             job = await self.slurm.inspect(instance.allocation_id or "")
-            if job is None or job.state.value in {"failed", "cancelled", "completed"}:
+            if job is None:
+                failure_reason = (
+                    f"Slurm job {instance.allocation_id} exited before the backend became healthy"
+                )
+                cancel_required = False
+                break
+            if job.state.value in {"failed", "cancelled", "completed"}:
+                failure_reason = (
+                    f"Slurm job {job.job_id} entered terminal state {job.state.value} "
+                    "before the backend became healthy"
+                )
+                cancel_required = False
                 break
             if await adapter.health(instance):
                 instance.state = BackendState.READY
                 self.breaker.record_success(deployment_id)
                 self._publish(deployment_id, instance)
-                return True
+                return None, False
             await asyncio.sleep(0.25)
+        else:
+            failure_reason = "backend did not become healthy before timeout"
+            cancel_required = True
         instance.state = BackendState.FAILED
-        instance.failure_reason = "backend did not become healthy before timeout"
+        instance.failure_reason = failure_reason
         self.breaker.record_failure(deployment_id)
         self._unpublish(deployment_id)
-        return False
+        return failure_reason, cancel_required
 
-    async def _drain_and_stop(self, deployment_id: str) -> bool:
+    async def _wait_until_released(self, job_id: str) -> bool:
+        terminal_states = {
+            SlurmJobState.COMPLETED,
+            SlurmJobState.FAILED,
+            SlurmJobState.CANCELLED,
+        }
+        deadline = self.clock() + self.termination_timeout
+        while True:
+            job = await self.slurm.inspect(job_id)
+            if job is None or job.state in terminal_states:
+                return True
+            remaining = deadline - self.clock()
+            if remaining <= 0:
+                return False
+            await asyncio.sleep(min(self.termination_poll_interval, remaining))
+
+    async def _drain_and_stop(self, deployment_id: str) -> str | None:
         instance = self.instances[deployment_id]
         adapter = self.runtime_adapters[deployment_id]
         await adapter.drain(instance)
@@ -96,13 +136,22 @@ class Reconciler:
         while instance.active_requests:
             if self.clock() >= deadline:
                 instance.state = BackendState.TIMEOUT
-                return False
+                return "active requests did not drain before timeout"
             await asyncio.sleep(0)
         await adapter.stop(instance)
         if instance.allocation_id is not None:
-            await self.slurm.cancel(instance.allocation_id)
+            job_id = instance.allocation_id
+            if await self.slurm.inspect(job_id) is not None:
+                try:
+                    await self.slurm.cancel(job_id)
+                except Exception:
+                    # A job can leave Slurm between the pre-cancel inspection and scancel.
+                    if await self.slurm.inspect(job_id) is not None:
+                        raise
+            if not await self._wait_until_released(job_id):
+                return f"Slurm job {job_id} did not release before timeout"
         self.instances.pop(deployment_id)
-        return True
+        return None
 
     async def reconcile(self, plan: ProfilePlan) -> ReconcileResult:
         if plan.blocked_by_protected_job:
@@ -111,10 +160,19 @@ class Reconciler:
         for deployment_id in plan.drain:
             if deployment_id not in self.instances:
                 continue
-            if await self._drain_and_stop(deployment_id):
+            try:
+                failure_reason = await self._drain_and_stop(deployment_id)
+            except Exception as exc:
+                failure_reason = str(exc)
+            if failure_reason is None:
                 stopped.append(deployment_id)
             else:
-                return ReconcileResult((), tuple(stopped), plan.keep, True)
+                return ReconcileResult(
+                    (),
+                    tuple(stopped),
+                    plan.keep,
+                    failures=(ReconcileFailure(deployment_id, "stop", failure_reason),),
+                )
         started: list[str] = []
         for deployment_id in plan.start:
             if deployment_id in self.instances:
@@ -148,11 +206,21 @@ class Reconciler:
                 instance = await adapter.start(deployment, allocation)
             self.instances[deployment_id] = instance
             if self.slurm_managed_runtime:
-                if await self._wait_until_ready(deployment_id, instance):
+                failure_reason, cancel_required = await self._wait_until_ready(
+                    deployment_id, instance
+                )
+                if failure_reason is None:
                     started.append(deployment_id)
                 else:
-                    await self.slurm.cancel(job.job_id)
+                    if cancel_required:
+                        await self.slurm.cancel(job.job_id)
                     self.instances.pop(deployment_id, None)
+                    return ReconcileResult(
+                        tuple(started),
+                        tuple(stopped),
+                        plan.keep,
+                        failures=(ReconcileFailure(deployment_id, "start", failure_reason),),
+                    )
             else:
                 instance.state = BackendState.WARMING
                 await adapter.warmup(instance)

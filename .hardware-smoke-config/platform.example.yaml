@@ -1,0 +1,34 @@
+environment: development
+config_revision: example-2026-08-07
+backend_bind: 127.0.0.1
+database:
+  url: sqlite+aiosqlite:///./llm-platform.db
+  echo: false
+gateway:
+  host: 127.0.0.1
+  port: 8000
+  public_base_url: http://127.0.0.1:8000
+  request_timeout_seconds: 600
+  cancel_on_disconnect: true
+  trusted_proxy_headers: false
+scheduler:
+  mode: auto
+  reconcile_interval_seconds: 2
+  same_model_coalesce_window_seconds: 2
+  minimum_profile_dwell_seconds: 120
+  rebalance_idle_seconds: 90
+  drain_timeout_seconds: 300
+  backend_health_timeout_seconds: 30
+  max_switches_per_10_minutes: 3
+  retry_budget: 3
+queue:
+  default_user_concurrency: 1
+  max_user_concurrency: 2
+  max_pending_per_user: 20
+  max_users: 3
+privacy:
+  store_prompt_body: false
+  store_code_body: false
+  metadata_retention_days: 90
+slurm:
+  qos: null
