@@ -116,6 +116,18 @@ Commands actually run in this workspace for the 2026-08-11 change are below.
 Hardware tests are guarded and were not run in this unprivileged workspace; no new
 real-GPU claim is made from this test run.
 
+- Production console entry-point fix — PASS: 5 focused tests resolve all three
+  declarations from `pyproject.toml`, verify `--help` exits successfully without
+  loading Gateway configuration, starting Uvicorn, or listening on a submit socket,
+  and verify parsing of the Gateway `--config` option and all four submit-helper
+  path options. Repository-wide Ruff format/check, strict mypy (79 checked files),
+  and `git diff --check` PASS. An offline editable reinstall with
+  `pip install --no-build-isolation --no-deps -e .` PASS, followed by successful
+  installed-script help invocations for `llm-platform`, `llm-backend-submit`, and
+  `llm-backend`. `make check` started successfully and repeated those Ruff and
+  source-mypy passes, then reproduced the documented async SQLite stall after the
+  first three authentication tests; it was interrupted after no further output, so
+  no full-suite or aggregate-coverage PASS is claimed.
 - Slurm shutdown synchronization fix — PASS: 7 focused orchestration integration
   tests (`pytest tests/integration/test_orchestration.py -q -p no:cov`) cover
   active-request draining, delayed `RUNNING` cancellation, timeout failure, and

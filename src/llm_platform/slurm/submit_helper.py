@@ -141,5 +141,9 @@ def run(
     asyncio.run(serve(socket, SubmitService(config, spool, log_dir)))
 
 
-if __name__ == "__main__":
+def main() -> None:
     typer.run(run)
+
+
+if __name__ == "__main__":
+    main()

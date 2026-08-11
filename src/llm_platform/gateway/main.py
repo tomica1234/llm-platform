@@ -92,5 +92,9 @@ def run(
     uvicorn.run(app, host=bundle.platform.gateway.host, port=bundle.platform.gateway.port)
 
 
+def main() -> None:
+    typer.run(run)
+
+
 if __name__ == "__main__":
-    run()
+    main()
