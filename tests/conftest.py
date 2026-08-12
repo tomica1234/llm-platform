@@ -103,11 +103,35 @@ def deployment_factory(
 @pytest.fixture
 def weights() -> dict[str, ScoreWeights]:
     return {
-        name: ScoreWeights(
-            quality_weight=1.6 if name == "quality" else 1,
-            latency_weight=1.5 if name == "fast" else 1,
+        "fast": ScoreWeights(
+            quality_weight=0.6,
+            latency_weight=2,
+            wait_weight=2,
+            switch_weight=1.8,
+            resource_weight=0.6,
+            loaded_bonus=0.5,
+            batching_bonus=0.3,
+        ),
+        "balanced": ScoreWeights(
+            quality_weight=1,
+            latency_weight=1,
             wait_weight=1,
             switch_weight=1,
-        )
-        for name in ("fast", "balanced", "quality")
+        ),
+        "strong": ScoreWeights(
+            quality_weight=2,
+            latency_weight=0.5,
+            wait_weight=0.5,
+            switch_weight=0.4,
+            resource_weight=0.1,
+        ),
+        "max": ScoreWeights(
+            quality_weight=4,
+            latency_weight=0.1,
+            wait_weight=0.1,
+            switch_weight=0.05,
+            resource_weight=0.02,
+            loaded_bonus=0.03,
+            batching_bonus=0.03,
+        ),
     }

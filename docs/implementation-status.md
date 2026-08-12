@@ -1,10 +1,23 @@
 # Implementation status
 
-Last updated: 2026-08-11
+Last updated: 2026-08-13
 
 State vocabulary: `DONE`, `PARTIAL`, `IN_PROGRESS`, `BLOCKED`, `PENDING`.
 `DONE (offline)` means the repository/software completion condition passed using fake
 adapters; it does not imply target-host or real-model acceptance.
+
+## Four-tier virtual-model routing verification
+
+- Canonical `fast`, `balanced`, `strong`, and `max` policies, their `auto/` forms,
+  and the legacy `quality` aliases: PASS in selector and representative routing tests.
+- Focused routing, config, Gateway, and harness suite: PASS, 39 tests.
+- Ruff format/check: PASS, 108 files formatted; lint clean.
+- strict mypy over `src` and `tests`: PASS, 81 source files.
+- `git diff --check`: PASS.
+- `make check`: STARTED; Ruff and strict source mypy passed, then the unit suite
+  reproduced the documented async SQLite authentication-test stall after
+  `tests/unit/test_auth.py ...`. It was interrupted after two minutes with no further
+  output, so no full-suite or aggregate-coverage PASS is claimed for this run.
 
 ## Target hardware evidence supplied by the operator
 

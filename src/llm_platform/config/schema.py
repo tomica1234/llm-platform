@@ -243,8 +243,8 @@ class RoutingFile(StrictModel):
 
     @model_validator(mode="after")
     def exact_modes(self) -> "RoutingFile":
-        if set(self.modes) != {"fast", "balanced", "quality"}:
-            raise ValueError("routing modes must be exactly fast, balanced, and quality")
+        if set(self.modes) != {"fast", "balanced", "strong", "max"}:
+            raise ValueError("routing modes must be exactly fast, balanced, strong, and max")
         return self
 
 

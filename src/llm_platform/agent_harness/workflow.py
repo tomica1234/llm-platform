@@ -49,7 +49,7 @@ class AgentWorkflow:
             {"command": command, "returncode": returncode, "output_summary": output_summary}
         )
         if self.state.repeated_failures >= 2 and not self.state.model.startswith("force/"):
-            self.state.model = "auto/quality"
+            self.state.model = "auto/strong"
             self.state.route_reasons.append("ESCALATED_AFTER_TEST_FAILURE")
         self.store.save(self.state)
         return returncode == 0

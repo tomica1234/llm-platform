@@ -10,7 +10,7 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 | Architecture and separation, §6 | package boundaries, `docs/architecture.md`, ADR-0001 | documentation + security review | DONE (offline) |
 | Harness and safety, §8 | `agent_harness/*` | vertical and security suites | PARTIAL |
 | Gateway API/errors/auth, §9 | `gateway/*`, `auth/*`; early server-exit notification and bounded active-request grace | `test_gateway.py`, `test_auth.py`, shutdown integration regression | PASS (fake) |
-| Router, §10 | `routing/router.py` | `test_routing.py` | PASS (fake) |
+| Router, §10 | `routing/router.py`; four canonical policy weight sets and legacy quality alias | `test_routing.py` selector, tier-selection, force, escalation, and hard-filter coverage | PASS (fake) |
 | Model/deployment registry, §11 | strict config + SQL models | config tests, validation CLI | DONE (offline) |
 | Planner/state transitions, §12 | scheduler + long-running control plane + reconciler | scheduler/orchestration/recovery tests, including structured immediate Slurm startup failure and bounded allocation-release polling on stop | PASS (fake); hardware test guarded |
 | Fair queue/cancel, §13 | `queueing/fair.py` + persistent request repository; shutdown-cancellable backend waits; startup terminalization of stale work | three-user/cancel/starvation tests; actual Uvicorn shutdown with delayed terminal DB cleanup; queued/assigned/running startup recovery | PASS (SQLite); follow-up PostgreSQL rerun pending |
@@ -46,7 +46,7 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 | AT-015 | model rollback dry-run/runbook | PARTIAL; real drill pending |
 | AT-016 | runtime version rollback dry-run/runbook | PARTIAL; real drill pending |
 | AT-017 | persistent unfinished requests + startup Slurm attach/health registry | PASS offline; reboot drill pending |
-| AT-018 | repeated identical failures select quality policy | PASS |
+| AT-018 | repeated identical failures select canonical strong policy | PASS |
 | AT-019 | high-risk/diverse-family router reasons | PARTIAL; enforced final loop pending |
 | AT-020 | unsupported forced runtime returns explicit error | PASS |
 | AT-021 | one shared-queue cancellation leaves neighbor assigned | PASS |

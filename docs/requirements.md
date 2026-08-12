@@ -402,9 +402,14 @@ DISCOVER
 
 ```text
 auto
+fast
+balanced
+strong
+max
 auto/fast
 auto/balanced
-auto/quality
+auto/strong
+auto/max
 prefer/<logical-model>
 force/<logical-model>
 force/<logical-model>@<runtime>
@@ -413,9 +418,13 @@ force-deployment/<deployment-id>
 
 意味:
 
-- `auto`: 品質、待ち時間、切替コストの標準バランス。
-- `auto/fast`: 低待ち時間を優先。
-- `auto/quality`: 成功確率を優先。
+- `auto`: balanced を基準とし、実行時状態、失敗回数、リスク、キュー、負荷を加味する自動選択。
+- `fast`: 低遅延、低待ち時間、ロード済み、低リソースを強く優先。
+- `balanced`: 品質と速度の標準的なトレードオフ。
+- `strong`: 品質優先。ただし遅延とリソースコストも考慮する。
+- `max`: 最高品質を最優先し、起動、遅延、リソースのペナルティを弱くする。
+- `auto/<policy>`: 対応する `fast`、`balanced`、`strong`、`max` ポリシー。
+- `quality` と `auto/quality`: 後方互換のため `strong` として解釈する非推奨エイリアス。
 - `prefer`: 指定を優先するが、設定された最大待ち時間を超える場合は代替可能。
 - `force`: 指定モデル以外へ変更しない。利用不可なら待機または明示エラー。
 - `force-deployment`: モデル、ランタイム、量子化、GPUプロファイルまで固定。
@@ -527,7 +536,7 @@ score =
 + diversity_bonus      × independent_review_value
 ```
 
-重みは `auto/fast`、`auto/balanced`、`auto/quality` ごとに変える。
+重みは `fast`、`balanced`、`strong`、`max` ごとに変える。
 
 ## 10.4 初期ルーター
 
@@ -1836,11 +1845,16 @@ routing:
       latency_weight: 1.0
       wait_weight: 1.0
       switch_weight: 1.0
-    quality:
-      quality_weight: 1.6
-      latency_weight: 0.6
+    strong:
+      quality_weight: 2.0
+      latency_weight: 0.5
       wait_weight: 0.5
-      switch_weight: 0.5
+      switch_weight: 0.4
+    max:
+      quality_weight: 4.0
+      latency_weight: 0.1
+      wait_weight: 0.1
+      switch_weight: 0.05
 
 queue:
   default_user_concurrency: 1

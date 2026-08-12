@@ -42,8 +42,15 @@ class Selector:
 def parse_selector(value: str) -> Selector:
     if value == "auto":
         return Selector(RouteMode.AUTO)
-    if value in {"auto/fast", "auto/balanced", "auto/quality"}:
-        return Selector(RouteMode.AUTO, value.split("/", 1)[1])
+    policy_aliases = {"quality": "strong"}
+    canonical_policies = {"fast", "balanced", "strong", "max"}
+    if value in canonical_policies or value in policy_aliases:
+        return Selector(RouteMode.AUTO, policy_aliases.get(value, value))
+    if value.startswith("auto/"):
+        policy = value.removeprefix("auto/")
+        policy = policy_aliases.get(policy, policy)
+        if policy in canonical_policies:
+            return Selector(RouteMode.AUTO, policy)
     if value.startswith("prefer/"):
         model_id = value.removeprefix("prefer/")
         if model_id:

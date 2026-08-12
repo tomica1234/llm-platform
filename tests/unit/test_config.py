@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from llm_platform.config.loader import load_bundle
-from llm_platform.config.schema import DeploymentConfig, PlatformConfig
+from llm_platform.config.schema import DeploymentConfig, PlatformConfig, RoutingFile
 
 
 def test_example_bundle_validates() -> None:
@@ -13,6 +13,20 @@ def test_example_bundle_validates() -> None:
     assert len(bundle.deployments.deployments) == 5
     assert len(bundle.users.users) == 1
     assert not any(item.auto_eligible for item in bundle.deployments.deployments)
+    assert set(bundle.routing.modes) == {"fast", "balanced", "strong", "max"}
+
+
+def test_legacy_quality_routing_key_is_rejected() -> None:
+    weights = {
+        "quality_weight": 1,
+        "latency_weight": 1,
+        "wait_weight": 1,
+        "switch_weight": 1,
+    }
+    with pytest.raises(ValidationError, match="exactly fast, balanced, strong, and max"):
+        RoutingFile.model_validate(
+            {"modes": {name: weights for name in ("fast", "balanced", "quality")}}
+        )
 
 
 def test_backend_bind_must_be_loopback() -> None:

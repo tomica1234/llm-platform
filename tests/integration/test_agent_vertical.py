@@ -57,5 +57,5 @@ def test_repeated_failure_escalates(tmp_path: Path) -> None:
     workflow = AgentWorkflow(state, store)
     for _ in range(3):
         workflow.record_test(["pytest"], 1, "same failure")
-    assert state.model == "auto/quality"
+    assert state.model == "auto/strong"
     assert "ESCALATED_AFTER_TEST_FAILURE" in state.route_reasons

@@ -18,8 +18,12 @@ wire_api = "responses"
 Export `LOCAL_LLM_GATEWAY_API_KEY` through the user's protected session environment,
 not the TOML. Codex sees only the gateway; llama.cpp and vLLM remain internal.
 
-Use `auto`, `auto/fast`, `auto/balanced`, or `auto/quality` normally. Explicit options
-are `prefer/<logical-model>`, `force/<logical-model>`,
+The canonical public policy selectors are `auto`, `fast`, `balanced`, `strong`, and
+`max`. The corresponding `auto/<policy>` forms are also accepted. `auto` uses
+balanced weights as its base while runtime state, failures, risk, queueing, and load
+can still affect the final route. `quality` and `auto/quality` remain compatibility
+aliases for `strong`; new clients should not emit them. Explicit options are
+`prefer/<logical-model>`, `force/<logical-model>`,
 `force/<logical-model>@<runtime>`, and `force-deployment/<deployment-id>`. Force never
 overrides permissions, safety, or physical capacity and never silently substitutes.
 

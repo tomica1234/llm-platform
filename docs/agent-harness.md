@@ -13,7 +13,7 @@ unless explicitly enabled. A production integration should create a task worktre
 
 The state sequence is DISCOVER → PLAN → IMPLEMENT → TEST, with DEBUG on failure,
 REVIEW after successful checks, and FINALIZE after review. Repeating an identical
-failure twice changes an unlocked route policy to `auto/quality`. High-risk task
+failure twice changes an unlocked route policy to `auto/strong`. High-risk task
 features request an independent final review, preferring another model family when a
 safe eligible family exists.
 
