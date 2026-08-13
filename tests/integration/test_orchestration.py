@@ -57,11 +57,11 @@ class UnhealthyHttpClient:
 @pytest.mark.asyncio
 async def test_balanced_to_three_gpu_shared_after_drain(deployment_factory: Any) -> None:
     large_two = deployment_factory(
-        "large-two", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP, gpus=2, port=8101
+        "large-two", model_id="example-model-a", runtime=RuntimeKind.LLAMA_CPP, gpus=2, port=8101
     )
     small = deployment_factory("small", model_id="qwen", gpus=1, port=8201)
     shared = deployment_factory(
-        "large-shared", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP, gpus=3, port=8102
+        "large-shared", model_id="example-model-a", runtime=RuntimeKind.LLAMA_CPP, gpus=3, port=8102
     )
     deployments = {item.deployment_id: item for item in (large_two, small, shared)}
     profiles = [
@@ -176,7 +176,7 @@ async def test_stop_of_already_gone_slurm_job_is_idempotently_successful(
 @pytest.mark.asyncio
 async def test_non_preemptible_job_blocks_transition(deployment_factory: Any) -> None:
     shared = deployment_factory(
-        "large-shared", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP, gpus=3, port=8102
+        "large-shared", model_id="example-model-a", runtime=RuntimeKind.LLAMA_CPP, gpus=3, port=8102
     )
     planner = ResourcePlanner(
         [shared], [GpuProfile(name="strong-shared", deployments=["large-shared"])]
@@ -213,7 +213,9 @@ async def test_submit_failure_is_reported_by_reconciliation(deployment_factory: 
 async def test_immediate_slurm_job_failure_is_reported_by_reconciliation(
     deployment_factory: Any, tmp_path: Any
 ) -> None:
-    deployment = deployment_factory("failed-start", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP)
+    deployment = deployment_factory(
+        "failed-start", model_id="example-model-a", runtime=RuntimeKind.LLAMA_CPP
+    )
     adapter = LlamaCppAdapter(http_client=UnhealthyHttpClient())  # type: ignore[arg-type]
     slurm = ImmediatelyFailingSlurmAdapter()
     reconciler = Reconciler(

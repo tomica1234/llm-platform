@@ -114,7 +114,7 @@ async def test_helper_resolves_reviewed_deployment_and_submits_fixed_command(
     response = await service.submit(
         {
             "operation": "submit",
-            "deployment_id": "qwen-vllm-1gpu",
+            "deployment_id": "example-b-vllm-1gpu",
             "instance_id": "instance-qwen",
         }
     )
@@ -163,7 +163,7 @@ async def test_helper_propagates_sbatch_failure_without_claiming_a_job(
     response = await service.submit(
         {
             "operation": "submit",
-            "deployment_id": "qwen-vllm-1gpu",
+            "deployment_id": "example-b-vllm-1gpu",
             "instance_id": "instance-1",
         }
     )
@@ -181,7 +181,7 @@ async def test_helper_rejects_invalid_sbatch_job_id(
     response = await service.submit(
         {
             "operation": "submit",
-            "deployment_id": "qwen-vllm-1gpu",
+            "deployment_id": "example-b-vllm-1gpu",
             "instance_id": "instance-1",
         }
     )
@@ -269,7 +269,7 @@ async def test_production_mode_submits_through_unix_helper(
     assert job.job_id == "4321"
     assert json.loads(written) == {
         "operation": "submit",
-        "deployment_id": "qwen-vllm-1gpu",
+        "deployment_id": "example-b-vllm-1gpu",
         "instance_id": "instance-qwen",
     }
     assert not (tmp_path / "unused.sbatch").exists()

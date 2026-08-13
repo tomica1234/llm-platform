@@ -37,12 +37,16 @@ async def test_per_user_concurrency_limit() -> None:
 
 
 def make_app(model_factory: Any, deployment_factory: Any, weights: Any) -> Any:
-    llama_model = model_factory("dvf", family="deepseek", quality=0.9)
+    llama_model = model_factory("example-model-a", family="deepseek", quality=0.9)
     vllm_model = model_factory("qwen", family="qwen", quality=0.7)
     from llm_platform.common.enums import RuntimeKind
 
     llama = deployment_factory(
-        "dvf-llama", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP, gpus=2, port=8101
+        "example-model-a-llama",
+        model_id="example-model-a",
+        runtime=RuntimeKind.LLAMA_CPP,
+        gpus=2,
+        port=8101,
     )
     vllm = deployment_factory("qwen-vllm", model_id="qwen", port=8201)
     router = RuleRouter([llama_model, vllm_model], [llama, vllm], weights)
@@ -57,7 +61,9 @@ def make_app(model_factory: Any, deployment_factory: Any, weights: Any) -> Any:
         )
         registry.register(deployment.deployment_id, adapter, instance)
     service = GatewayService(router, registry, [llama_model, vllm_model])
-    principal = ApiPrincipal("alice", frozenset({"inference"}), frozenset({"dvf", "qwen"}), 1)
+    principal = ApiPrincipal(
+        "alice", frozenset({"inference"}), frozenset({"example-model-a", "qwen"}), 1
+    )
     store = InMemoryKeyStore(
         [
             KeyRecord("key", key_prefix(API_KEY), hash_api_key(API_KEY), principal),
@@ -68,7 +74,7 @@ def make_app(model_factory: Any, deployment_factory: Any, weights: Any) -> Any:
                 ApiPrincipal(
                     "admin",
                     frozenset({"inference", "admin"}),
-                    frozenset({"dvf", "qwen"}),
+                    frozenset({"example-model-a", "qwen"}),
                 ),
             ),
         ]
@@ -88,7 +94,7 @@ async def test_responses_and_force_runtime(
             "/v1/responses",
             headers={"Authorization": f"Bearer {API_KEY}"},
             json={
-                "model": "force/dvf@llama_cpp",
+                "model": "force/example-model-a@llama_cpp",
                 "input": "hello",
                 "benign_future_field": {"preserved": True},
             },
@@ -96,7 +102,7 @@ async def test_responses_and_force_runtime(
     assert response.status_code == 200
     assert response.json()["object"] == "response"
     assert response.headers["x-selected-runtime"] == "llama_cpp"
-    assert response.headers["x-selected-deployment"] == "dvf-llama"
+    assert response.headers["x-selected-deployment"] == "example-model-a-llama"
     assert response.headers["x-request-id"].startswith("req-")
 
 
@@ -116,7 +122,7 @@ async def test_chat_streaming_and_models(
             json={"model": "force-deployment/qwen-vllm", "messages": [], "stream": True},
         )
     assert models.status_code == 200
-    assert {item["id"] for item in models.json()["data"]} == {"dvf", "qwen"}
+    assert {item["id"] for item in models.json()["data"]} == {"example-model-a", "qwen"}
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert response.content.endswith(b"data: [DONE]\n\n")

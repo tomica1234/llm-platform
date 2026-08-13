@@ -12,7 +12,11 @@ from llm_platform.runtimes.vllm import VllmAdapter
 
 def test_llama_launch_spec_uses_argument_array_and_allocation(deployment_factory: Any) -> None:
     deployment = deployment_factory(
-        "dvf-llama", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP, gpus=2, port=8101
+        "example-model-a-llama",
+        model_id="example-model-a",
+        runtime=RuntimeKind.LLAMA_CPP,
+        gpus=2,
+        port=8101,
     )
     spec = LlamaCppAdapter().build_launch_spec(deployment, Allocation("1", ("2", "0"), 4, 16))
     assert spec.argv[0] == "/opt/runtime/llama_cpp"

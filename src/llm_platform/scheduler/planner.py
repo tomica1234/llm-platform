@@ -49,10 +49,10 @@ class ResourcePlanner:
 
 
 def choose_profile(waiting_models: list[str]) -> str:
-    large_count = sum(model == "dvf" for model in waiting_models)
+    large_count = sum(model == "example-model-a" for model in waiting_models)
     if large_count >= 2:
         return "strong-shared"
-    if any(model == "dvf" for model in waiting_models):
+    if any(model == "example-model-a" for model in waiting_models):
         return "balanced"
     if waiting_models:
         return "implementation-burst"

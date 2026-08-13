@@ -644,27 +644,23 @@ CONTEXT_TOO_LONG
 
 ```yaml
 models:
-  dvf:
-    display_name: DeepSeek V4 Flash
-    family: deepseek
+  example-model-a:
+    display_name: Example Model A (unconfigured)
+    family: placeholder
     capabilities:
-      tool_calling: true
-      structured_output: tested
       max_context: 32768
 
-  qwen-main:
-    display_name: Qwen 3.6 27B
-    family: qwen
+  example-model-b:
+    display_name: Example Model B (unconfigured)
+    family: placeholder
     capabilities:
-      tool_calling: true
-      structured_output: tested
       max_context: 32768
 
 deployments:
-  dvf-llama-2gpu:
-    model: dvf
+  example-a-llama-2gpu:
+    model: example-model-a
     runtime: llama_cpp
-    artifact: /srv/models/gguf/dvf/<revision>/model.gguf
+    artifact: /srv/models/gguf/example-model-a/<revision>/model.gguf
     resources:
       gpus: 2
       cpus: 16
@@ -672,10 +668,10 @@ deployments:
     serving:
       concurrency: 1
 
-  dvf-llama-3gpu-shared:
-    model: dvf
+  example-a-llama-3gpu:
+    model: example-model-a
     runtime: llama_cpp
-    artifact: /srv/models/gguf/dvf/<revision>/model.gguf
+    artifact: /srv/models/gguf/example-model-a/<revision>/model.gguf
     resources:
       gpus: 3
       cpus: 20
@@ -683,10 +679,10 @@ deployments:
     serving:
       concurrency: 2
 
-  qwen-vllm-1gpu:
-    model: qwen-main
+  example-b-vllm-1gpu:
+    model: example-model-b
     runtime: vllm
-    artifact: /srv/models/hf/qwen-main/<revision>
+    artifact: /srv/models/hf/example-model-b/<revision>
     resources:
       gpus: 1
       cpus: 8
@@ -1571,10 +1567,10 @@ llmctl rollback runtime llama.cpp <version>
 agent
 agent --policy fast
 agent --policy quality
-agent --prefer-model dvf
-agent --force-model dvf
+agent --prefer-model example-model-a
+agent --force-model example-model-a
 agent --force-runtime llama_cpp
-agent --force-deployment dvf-llama-3gpu-shared
+agent --force-deployment example-a-llama-3gpu
 agent --max-wait 300
 agent --resume <task-id>
 agent status
@@ -1584,11 +1580,11 @@ agent status
 
 ```text
 /model auto
-/model prefer dvf
-/model force dvf
+/model prefer example-model-a
+/model force example-model-a
 /runtime auto
 /runtime force llama_cpp
-/deployment force dvf-llama-3gpu-shared
+/deployment force example-a-llama-3gpu
 /route status
 /route explain
 /route unlock
@@ -1712,7 +1708,7 @@ agent status
 | AT-001 | Aが実装用モデル、Bが大型モデル | 1GPU＋2GPU構成で同時処理できる。 |
 | AT-002 | AとBが同時に大型モデル | 3GPU共有デプロイメントへ集約し、モデルを2個ロードしない。 |
 | AT-003 | 3人が同時要求 | 公平キューで処理され、1人が全枠を独占しない。 |
-| AT-004 | `force dvf@llama_cpp` | 別モデルへ変更せず、利用可能になるまで待機または明示エラー。 |
+| AT-004 | `force example-model-a@llama_cpp` | 別モデルへ変更せず、利用可能になるまで待機または明示エラー。 |
 | AT-005 | `force qwen@vllm` | 指定ランタイムで起動し、応答headerに選定結果を返す。 |
 | AT-006 | llama.cpp backend crash | 要求を失敗確定または安全に再試行し、backendを再構築する。 |
 | AT-007 | vLLM load OOM | deploymentをDEGRADEDにし、同じ失敗を無限再起動しない。 |

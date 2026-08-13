@@ -39,7 +39,7 @@ def test_sbatch_template_uses_validated_instance_comment(deployment_factory: Any
     assert "#SBATCH --uid" not in script
     assert "#SBATCH --qos" not in script
     assert "/opt/llm-platform/app/current/bin/llm-backend" in script
-    assert "--deployment qwen-vllm-1gpu" in script
+    assert "--deployment example-b-vllm-1gpu" in script
     with pytest.raises(ConfigurationError):
         render_sbatch_script(deployment, "bad\n#SBATCH --gres=gpu:99")
 
@@ -75,7 +75,7 @@ async def test_cli_submit_and_list_preserve_instance_mapping(
     deployment_factory: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = StubRunner(
-        [result("1234;cluster\n"), result("1234|RUNNING|llm-qwen-vllm-1gpu|instance-qwen\n")]
+        [result("1234;cluster\n"), result("1234|RUNNING|llm-example-b-vllm-1gpu|instance-qwen\n")]
     )
     monkeypatch.setenv("LLM_PLATFORM_ALLOW_CURRENT_USER_SLURM_SUBMIT", "1")
     monkeypatch.setenv("USER", "shunta")

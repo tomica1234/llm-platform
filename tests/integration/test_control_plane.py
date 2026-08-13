@@ -44,7 +44,7 @@ async def test_queued_request_starts_slurm_managed_backend_and_persists_metadata
     deployment_factory: Any, tmp_path: Path
 ) -> None:
     deployment = deployment_factory(
-        "llama-one", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP, port=8111
+        "llama-one", model_id="example-model-a", runtime=RuntimeKind.LLAMA_CPP, port=8111
     )
     profile = GpuProfile(name="balanced", deployments=[deployment.deployment_id])
     registry = DeploymentRegistry()
@@ -74,8 +74,8 @@ async def test_queued_request_starts_slurm_managed_backend_and_persists_metadata
             deployment.deployment_id,
             "request-1",
             "user-1",
-            "force/dvf",
-            {"model": "force/dvf", "input": "not persisted"},
+            "force/example-model-a",
+            {"model": "force/example-model-a", "input": "not persisted"},
             timeout_seconds=2,
         )
         instance = registry.instances[deployment.deployment_id]
@@ -101,7 +101,7 @@ async def test_queued_request_starts_slurm_managed_backend_and_persists_metadata
 async def test_shutdown_cancels_backend_wait_and_terminalizes_request(
     deployment_factory: Any, tmp_path: Path
 ) -> None:
-    deployment = deployment_factory("unavailable", model_id="dvf")
+    deployment = deployment_factory("unavailable", model_id="example-model-a")
     profile = GpuProfile(name="needed", deployments=[deployment.deployment_id])
     idle = GpuProfile(name="idle", deployments=[])
     database = Database(f"sqlite+aiosqlite:///{tmp_path / 'shutdown.db'}")
@@ -154,7 +154,7 @@ async def test_shutdown_cancels_backend_wait_and_terminalizes_request(
 async def test_startup_terminalizes_requests_left_unfinished_by_previous_process(
     deployment_factory: Any, tmp_path: Path
 ) -> None:
-    deployment = deployment_factory("unavailable", model_id="dvf")
+    deployment = deployment_factory("unavailable", model_id="example-model-a")
     profile = GpuProfile(name="needed", deployments=[deployment.deployment_id])
     idle = GpuProfile(name="idle", deployments=[])
     database = Database(f"sqlite+aiosqlite:///{tmp_path / 'recovery.db'}")
@@ -165,9 +165,9 @@ async def test_startup_terminalizes_requests_left_unfinished_by_previous_process
             await repository.create(
                 request_id=request_id,
                 user_id="user-1",
-                requested_model="force/dvf",
+                requested_model="force/example-model-a",
                 priority="agent",
-                body={"model": "force/dvf"},
+                body={"model": "force/example-model-a"},
             )
         await repository.transition("stale-assigned", {"queued"}, "assigned")
         await repository.transition("stale-running", {"queued"}, "assigned")
@@ -200,7 +200,7 @@ async def test_startup_recovery_attaches_healthy_existing_job(
     deployment_factory: Any, tmp_path: Path
 ) -> None:
     deployment = deployment_factory(
-        "llama-recovered", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP, port=8112
+        "llama-recovered", model_id="example-model-a", runtime=RuntimeKind.LLAMA_CPP, port=8112
     )
     slurm = FakeSlurmAdapter()
     job = await slurm.submit_backend(deployment, "existing-instance", tmp_path / "unused")

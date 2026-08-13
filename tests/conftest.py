@@ -25,7 +25,7 @@ def capabilities() -> Capabilities:
 @pytest.fixture
 def model_factory(capabilities: Capabilities) -> Callable[..., ModelConfig]:
     def factory(
-        model_id: str = "qwen-main",
+        model_id: str = "example-model-b",
         *,
         family: str = "qwen",
         quality: float = 0.75,
@@ -50,9 +50,9 @@ def deployment_factory(
     capabilities: Capabilities,
 ) -> Callable[..., DeploymentConfig]:
     def factory(
-        deployment_id: str = "qwen-vllm-1gpu",
+        deployment_id: str = "example-b-vllm-1gpu",
         *,
-        model_id: str = "qwen-main",
+        model_id: str = "example-model-b",
         runtime: RuntimeKind = RuntimeKind.VLLM,
         gpus: int = 1,
         port: int = 8201,

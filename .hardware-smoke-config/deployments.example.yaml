@@ -1,8 +1,8 @@
 deployments:
-- deployment_id: dvf-llama-2gpu
-  model_id: dvf
+- deployment_id: example-a-llama-2gpu
+  model_id: example-model-a
   runtime: llama_cpp
-  artifact: /srv/models/gguf/dvf/benchmark-required/model.gguf
+  artifact: /srv/models/gguf/example-model-a/benchmark-required/model.gguf
   executable: /opt/llm-platform/runtimes/llama.cpp/current/llama-server
   runtime_version: benchmark-required
   resources:
@@ -27,10 +27,10 @@ deployments:
     multimodal: false
   benchmark: null
   enabled: false
-- deployment_id: dvf-llama-3gpu-shared
-  model_id: dvf
+- deployment_id: example-a-llama-3gpu
+  model_id: example-model-a
   runtime: llama_cpp
-  artifact: /srv/models/gguf/dvf/benchmark-required/model.gguf
+  artifact: /srv/models/gguf/example-model-a/benchmark-required/model.gguf
   executable: /opt/llm-platform/runtimes/llama.cpp/current/llama-server
   runtime_version: benchmark-required
   resources:
@@ -55,10 +55,10 @@ deployments:
     multimodal: false
   benchmark: null
   enabled: false
-- deployment_id: qwen-vllm-1gpu
-  model_id: qwen-main
+- deployment_id: example-b-vllm-1gpu
+  model_id: example-model-b
   runtime: vllm
-  artifact: /srv/models/hf/qwen-main/benchmark-required
+  artifact: /srv/models/hf/example-model-b/benchmark-required
   executable: /opt/llm-platform/runtimes/vllm/current/bin/vllm
   runtime_version: benchmark-required
   resources:

@@ -1,5 +1,5 @@
 schema_version: 1
-deployment_id: qwen-vllm-1gpu
+deployment_id: example-b-vllm-1gpu
 hardware_revision: REPLACE_AFTER_INVENTORY
 runtime_revision: REPLACE_AFTER_INSTALL
 measured_at: null

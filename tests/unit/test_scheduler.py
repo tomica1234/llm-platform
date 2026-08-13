@@ -26,7 +26,7 @@ def test_state_machine_happy_path_and_invalid_transition() -> None:
 
 def test_profile_planner_protects_non_preemptible_job(deployment_factory: Any) -> None:
     large = deployment_factory(
-        "large", model_id="dvf", runtime=RuntimeKind.LLAMA_CPP, gpus=3, port=8101
+        "large", model_id="example-model-a", runtime=RuntimeKind.LLAMA_CPP, gpus=3, port=8101
     )
     profiles = [GpuProfile(name="strong-shared", deployments=["large"])]
     planner = ResourcePlanner([large], profiles)
@@ -36,7 +36,7 @@ def test_profile_planner_protects_non_preemptible_job(deployment_factory: Any) -
 
 
 def test_profile_selection_coalesces_large_model() -> None:
-    assert choose_profile(["dvf", "dvf"]) == "strong-shared"
-    assert choose_profile(["dvf", "qwen"]) == "balanced"
+    assert choose_profile(["example-model-a", "example-model-a"]) == "strong-shared"
+    assert choose_profile(["example-model-a", "qwen"]) == "balanced"
     assert choose_profile(["qwen"]) == "implementation-burst"
     assert choose_profile([]) == "idle"

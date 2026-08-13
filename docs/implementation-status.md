@@ -254,6 +254,27 @@ Earlier baseline evidence:
 
 ## Known limitations and blockers
 
+## Explicit example model identities (2026-08-13)
+
+- Replaced the former candidate-like example model and deployment IDs with
+  `example-model-a`, `example-model-b`, and matching `example-a-*`/`example-b-*`
+  deployment IDs across configuration templates, hardware-smoke examples, selector
+  documentation, fixtures, benchmarks, and tests.
+- Placeholder model metadata is explicitly unconfigured (`family: placeholder`) and
+  no longer asserts model skill scores or role tags. The installed
+  `qwen3-0.6b-smoke` identity and metadata remain unchanged.
+- `make format` — PASS (Ruff reformatted three touched Python files and applied no
+  lint fixes); `make lint` — PASS (116 files); `make typecheck` — PASS (61 source
+  files); `llmctl config validate --config-dir config` — PASS (3 models,
+  5 deployments); `make test-security` — PASS (6 tests and secret-pattern check).
+- `make test`, `make test-integration`, and the pytest phase of `make check` were
+  run but did not complete: pytest repeatedly stopped making progress in the
+  existing async API/CLI test area (`test_admin_cli.py` or
+  `test_agent_profile_api.py`) and each run was interrupted after extended silence.
+  `make check` completed Ruff and strict mypy successfully before the same stall.
+  The 34 directly affected unit tests passed; a broader focused run then stalled in
+  the control-plane/orchestration group. No full-suite PASS is claimed.
+
 ## User-scoped dynamic AgentProfile skill evidence (2026-08-13)
 
 - Added Alembic revision `0003`, creating user-owned `agent_profiles` and append-only

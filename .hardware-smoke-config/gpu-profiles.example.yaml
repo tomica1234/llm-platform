@@ -1,12 +1,12 @@
 profiles:
   - name: balanced
-    deployments: [dvf-llama-2gpu, qwen-vllm-1gpu]
+    deployments: [example-a-llama-2gpu, example-b-vllm-1gpu]
     protected_non_preemptible: true
   - name: strong-shared
-    deployments: [dvf-llama-3gpu-shared]
+    deployments: [example-a-llama-3gpu]
     protected_non_preemptible: true
   - name: implementation-burst
-    deployments: [qwen-vllm-1gpu]
+    deployments: [example-b-vllm-1gpu]
     protected_non_preemptible: true
   - name: idle
     deployments: []
