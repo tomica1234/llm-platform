@@ -14,6 +14,7 @@ from llm_platform.common.enums import SkillName
 from llm_platform.config.loader import load_bundle
 from llm_platform.persistence.database import Database
 from llm_platform.persistence.models import AgentProfileRow, ApiKeyRow, ModelRow, UserRow
+from llm_platform.persistence.registry import RegistrySyncReport, sync_registry
 from llm_platform.persistence.skills import AgentProfileRepository, ModelSkillRepository
 
 app = typer.Typer(help="Administrative control and inspection CLI")
@@ -26,6 +27,7 @@ maintenance_app = typer.Typer(help="Maintenance mode operations")
 rollback_app = typer.Typer(help="Version rollback planning")
 agent_profile_app = typer.Typer(help="Agent profile inspection")
 skill_app = typer.Typer(help="Model skill evaluation operations")
+registry_app = typer.Typer(help="Configuration-to-SQL registry synchronization")
 app.add_typer(key_app, name="key")
 app.add_typer(config_app, name="config")
 app.add_typer(profile_app, name="profile")
@@ -35,6 +37,7 @@ app.add_typer(maintenance_app, name="maintenance")
 app.add_typer(rollback_app, name="rollback")
 app.add_typer(agent_profile_app, name="agent-profile")
 app.add_typer(skill_app, name="skill")
+app.add_typer(registry_app, name="registry")
 
 
 def database_from_config(config_dir: Path) -> Database:
@@ -226,6 +229,51 @@ def validate(config_dir: Path = Path("config")) -> None:
         f"valid: revision={bundle.platform.config_revision} "
         f"models={len(bundle.models.models)} deployments={len(bundle.deployments.deployments)}"
     )
+
+
+def format_registry_report(report: RegistrySyncReport, *, apply: bool) -> str:
+    prefix = "applied" if apply else "dry-run"
+    categories = (
+        ("created models", report.created_models),
+        ("updated models", report.updated_models),
+        ("disabled stale models", report.disabled_stale_models),
+        ("created deployments", report.created_deployments),
+        ("updated deployments", report.updated_deployments),
+        ("disabled stale deployments", report.disabled_stale_deployments),
+    )
+    lines = [prefix]
+    lines.extend(f"{name}: {', '.join(ids) if ids else '(none)'}" for name, ids in categories)
+    return "\n".join(lines)
+
+
+async def synchronize_registry(config_dir: Path, *, apply: bool) -> RegistrySyncReport:
+    bundle = load_bundle(config_dir)
+    database_url = os.environ.get("LLM_PLATFORM_DATABASE_URL", bundle.platform.database.url)
+    database = Database(database_url, echo=bundle.platform.database.echo)
+    try:
+        async with database.session() as session:
+            try:
+                report = await sync_registry(session, bundle, apply=apply)
+                if apply:
+                    await session.commit()
+                else:
+                    await session.rollback()
+                return report
+            except Exception:
+                await session.rollback()
+                raise
+    finally:
+        await database.dispose()
+
+
+@registry_app.command("sync")
+def registry_sync(
+    config_dir: Path = typer.Option(Path("config"), "--config-dir"),
+    apply: bool = typer.Option(False, "--apply"),
+) -> None:
+    """Synchronize the validated configuration registry into SQL."""
+    report = asyncio.run(synchronize_registry(config_dir, apply=apply))
+    typer.echo(format_registry_report(report, apply=apply))
 
 
 @key_app.command("hash")

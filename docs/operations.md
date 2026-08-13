@@ -1,5 +1,19 @@
 # Operations
 
+## Registry activation
+
+After database migrations and before activating the Gateway, validate the complete
+configuration and synchronize its desired registry into PostgreSQL:
+
+```bash
+llmctl config validate --config-dir /etc/llm-platform
+llmctl registry sync --config-dir /etc/llm-platform --apply
+```
+
+`llmctl registry sync` without `--apply` is a dry-run. It reports exact creates,
+updates, and stale-row disables without changing SQL. Removed configuration entries
+are retained and disabled so foreign keys and historical evaluations remain valid.
+
 ## Routine status
 
 ```bash

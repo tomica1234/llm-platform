@@ -56,6 +56,9 @@ class AsyncSessionFacade:
     async def commit(self) -> None:
         self.session.commit()
 
+    async def rollback(self) -> None:
+        self.session.rollback()
+
     async def execute(self, statement: Any) -> Any:
         return self.session.execute(statement)
 
@@ -249,3 +252,40 @@ def test_skill_and_agent_profile_cli_json_commands(
     assert profiles.exit_code == 0, profiles.output
     assert json.loads(profiles.output)[0]["id"] == "ap-cli"
     database.engine.dispose()
+
+
+def test_registry_sync_cli_defaults_to_dry_run_and_requires_apply(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = foreign_key_database(tmp_path / "registry-cli.db")
+    monkeypatch.setattr("llm_platform.admin_cli.main.Database", lambda *_args, **_kwargs: database)
+    runner = CliRunner()
+
+    dry_run = runner.invoke(app, ["registry", "sync", "--config-dir", "config"])
+    with database.session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(ModelRow)) == 0
+    applied = runner.invoke(app, ["registry", "sync", "--config-dir", "config", "--apply"])
+    second = runner.invoke(app, ["registry", "sync", "--config-dir", "config", "--apply"])
+
+    assert dry_run.exit_code == 0, dry_run.output
+    assert (
+        "dry-run\ncreated models: example-model-a, example-model-b, qwen3-0.6b-smoke"
+        in dry_run.output
+    )
+    assert applied.exit_code == 0, applied.output
+    assert (
+        "applied\ncreated models: example-model-a, example-model-b, qwen3-0.6b-smoke"
+        in applied.output
+    )
+    assert second.exit_code == 0, second.output
+    assert all(
+        f"{label}: (none)" in second.output
+        for label in (
+            "created models",
+            "updated models",
+            "disabled stale models",
+            "created deployments",
+            "updated deployments",
+            "disabled stale deployments",
+        )
+    )

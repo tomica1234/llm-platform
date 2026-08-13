@@ -1348,6 +1348,12 @@ Slurm会計とゲートウェイ要求ログをrequest ID／backend instance ID�
 - benchmark_id
 - enabled
 
+YAML設定を desired registry の正本とし、`llmctl registry sync` で models と
+deployments を単一DBトランザクション内に同期する。既定は dry-run、変更は
+`--apply` 指定時のみ行う。設定から消えた行は削除せず `enabled=false` とし、
+履歴および外部キー参照を保持する。deployment の SQL config へ秘密の環境変数、
+artifact path、executable path を複製しない。モデル技能評価はこの同期の対象外とする。
+
 ### backend_instances
 
 - id
@@ -1547,6 +1553,8 @@ llmctl model verify <model-id>
 llmctl maintenance enter
 llmctl maintenance exit
 llmctl config validate
+llmctl registry sync
+llmctl registry sync --apply
 llmctl rollback gateway <version>
 llmctl rollback runtime llama.cpp <version>
 ```

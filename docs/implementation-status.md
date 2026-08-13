@@ -254,6 +254,32 @@ Earlier baseline evidence:
 
 ## Known limitations and blockers
 
+## Configuration-owned SQL registry synchronization (2026-08-13)
+
+- Added dry-run-by-default `llmctl registry sync` with explicit `--apply`, using the
+  complete validated configuration bundle as desired state for SQL model/deployment
+  upserts and stale-row disables in one transaction.
+- Missing configuration rows are retained disabled, preserving deployment history,
+  model skill evaluations, and foreign keys. Dynamic skill data is not populated or
+  changed. Deployment SQL metadata excludes environment values, artifact paths,
+  executable paths, and launch arguments.
+- Focused registry persistence and CLI test selection — PASS: 7 tests covering empty
+  DB model/deployment creation with a valid FK, idempotency, metadata updates,
+  retained deployment schema fields, stale disables, retained skill evaluations,
+  dry-run, CLI apply, secret/path exclusion, and atomic rollback after an injected
+  deployment failure.
+- Full `test_admin_cli.py` was run with a 60-second bound: 2 tests passed before the
+  existing async database path stopped making progress; exit 124. The focused new CLI
+  test passes. `test_skill_migration.py` likewise stopped in the existing
+  Alembic/aiosqlite path and timed out after 60 seconds (exit 124). No migration-suite
+  PASS is claimed.
+- `make format` — PASS (one touched file reformatted); `make lint` — PASS (119
+  files); strict `make typecheck` — PASS (62 source files); `git diff --check` — PASS.
+- `make check` was run with a 240-second bound. Ruff and strict mypy passed, then
+  pytest stopped making progress at the first `test_admin_cli.py` item in the
+  non-integration selection; the command was terminated by the bound (exit 124).
+  No aggregate or coverage PASS is claimed.
+
 ## Explicit example model identities (2026-08-13)
 
 - Replaced the former candidate-like example model and deployment IDs with

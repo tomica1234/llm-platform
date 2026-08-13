@@ -11,7 +11,7 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 | Harness and safety, §8 | `agent_harness/*` | vertical and security suites | PARTIAL |
 | Gateway API/errors/auth, §9 | `gateway/*`, `auth/*`; early server-exit notification and bounded active-request grace | `test_gateway.py`, `test_auth.py`, shutdown integration regression | PASS (fake) |
 | Router, §10 | `routing/router.py`; four canonical policy weight sets and legacy quality alias | `test_routing.py` selector, tier-selection, force, escalation, and hard-filter coverage | PASS (fake) |
-| Model/deployment registry, §11 | strict config + SQL models; explicit unconfigured example identities per ADR-0006 | config tests, validation CLI, placeholder-reference audit | DONE (offline) |
+| Model/deployment registry, §11/§18 | strict config + SQL models; explicit examples per ADR-0006; transactional configuration-owned sync per ADR-0007 | registry persistence/rollback/idempotency/stale-history tests and CLI dry-run/apply tests; migration test present, current rerun stalled | DONE (offline); production PostgreSQL apply pending |
 | Dynamic model skills and user AgentProfiles | `agent_profiles` + append-only `model_skill_evaluations`, authenticated profile/evaluation/capability APIs, admin CLI | repository aggregation/idempotency, dynamic Gateway, ownership/model-permission, CLI, and SQLite migration tests | PASS pending full-suite rerun |
 | Planner/state transitions, §12 | scheduler + long-running control plane + reconciler | scheduler/orchestration/recovery tests, including structured immediate Slurm startup failure and bounded allocation-release polling on stop | PASS (fake); hardware test guarded |
 | Fair queue/cancel, §13 | `queueing/fair.py` + persistent request repository; shutdown-cancellable backend waits; startup terminalization of stale work | three-user/cancel/starvation tests; actual Uvicorn shutdown with delayed terminal DB cleanup; queued/assigned/running startup recovery | PASS (SQLite); follow-up PostgreSQL rerun pending |
@@ -21,7 +21,7 @@ offline test passed using mock/fake components; it is not real-host acceptance.
 | Persistence/privacy, §18 | SQLAlchemy request + desired-profile repositories/Alembic; atomic unfinished-request recovery | DB/idempotency/migration and shutdown/restart recovery tests | PASS (SQLite); PostgreSQL exposed pre-fix stale rows, follow-up rerun pending |
 | Metrics/logs/alerts, §19 | Prometheus + redacted structured logging | metrics/privacy tests | PARTIAL; host alerts pending |
 | NFR-001–020 | systemd, state/recovery, adapters, config, runbooks | offline suites and dry-runs | PARTIAL |
-| Admin/user CLI, §21–22 | `admin_cli/*`, `agent_harness/cli.py` | config CLI + dry-run commands | PARTIAL |
+| Admin/user CLI, §21–22 | `admin_cli/*`, `agent_harness/cli.py`; `registry sync` dry-run/apply | config/registry CLI + dry-run commands | PARTIAL |
 | Backup/recovery, §23 | scripts and runbooks | dry-run paths | PARTIAL; restore drill pending |
 | Tests, §24 | unit/integration/security/hardware markers | `make check` | PASS offline |
 | Evaluation/learned router, Phase 6 | outcomes/evaluation/LearnedRouter | evaluator tests | DONE foundation only |
