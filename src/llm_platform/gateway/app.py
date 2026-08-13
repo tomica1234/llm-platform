@@ -10,7 +10,9 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from llm_platform.auth.keys import ApiPrincipal, KeyStore, authenticate
 from llm_platform.common.errors import PlatformError, RouteUnavailableError
+from llm_platform.gateway.schemas import AgentProfileCreate, SkillEvaluationCreate
 from llm_platform.gateway.service import GatewayService, routing_headers
+from llm_platform.persistence.skills import AgentProfile
 
 
 def error_body(error: PlatformError, request_id: str) -> dict[str, Any]:
@@ -22,6 +24,18 @@ def error_body(error: PlatformError, request_id: str) -> dict[str, Any]:
             "request_id": request_id,
             "retryable": error.retryable,
         }
+    }
+
+
+def agent_profile_body(profile: AgentProfile) -> dict[str, Any]:
+    return {
+        "id": profile.id,
+        "harness_name": profile.harness_name,
+        "harness_version": profile.harness_version,
+        "config_hash": profile.config_hash,
+        "toolset_hash": profile.toolset_hash,
+        "created_at": profile.created_at,
+        "retired_at": profile.retired_at,
     }
 
 
@@ -92,6 +106,35 @@ def create_app(
     @app.get("/v1/models")
     async def models(user: Principal) -> dict[str, Any]:
         return {"object": "list", "data": service.list_models(user)}
+
+    @app.post("/v1/agent-profiles", status_code=201)
+    async def create_agent_profile(payload: AgentProfileCreate, user: Principal) -> dict[str, Any]:
+        return agent_profile_body(await service.create_agent_profile(user, payload))
+
+    @app.get("/v1/agent-profiles")
+    async def list_agent_profiles(user: Principal) -> dict[str, Any]:
+        profiles = await service.list_agent_profiles(user)
+        return {"profiles": [agent_profile_body(profile) for profile in profiles]}
+
+    @app.get("/v1/agent-profiles/{profile_id}")
+    async def get_agent_profile(profile_id: str, user: Principal) -> dict[str, Any]:
+        return agent_profile_body(await service.get_agent_profile(user, profile_id))
+
+    @app.post("/v1/model-skill-evaluations")
+    async def submit_skill_evaluation(
+        payload: SkillEvaluationCreate,
+        user: Principal,
+        idempotency_key: str | None = Header(default=None),
+    ) -> JSONResponse:
+        body, created = await service.submit_skill_evaluation(user, payload, idempotency_key)
+        return JSONResponse(body, status_code=201 if created else 200)
+
+    @app.get("/v1/model-capabilities")
+    async def model_capabilities(
+        user: Principal,
+        x_agent_profile_id: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        return {"models": await service.model_capabilities(user, x_agent_profile_id)}
 
     async def proxy_request(
         path: str,

@@ -3,14 +3,18 @@ import json
 import os
 import secrets
 import uuid
+from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
 import typer
 
 from llm_platform.auth.keys import hash_api_key, key_prefix
+from llm_platform.common.enums import SkillName
 from llm_platform.config.loader import load_bundle
 from llm_platform.persistence.database import Database
-from llm_platform.persistence.models import ApiKeyRow, UserRow
+from llm_platform.persistence.models import AgentProfileRow, ApiKeyRow, ModelRow, UserRow
+from llm_platform.persistence.skills import AgentProfileRepository, ModelSkillRepository
 
 app = typer.Typer(help="Administrative control and inspection CLI")
 key_app = typer.Typer(help="API key helpers")
@@ -20,6 +24,8 @@ deployment_app = typer.Typer(help="Deployment operations")
 model_app = typer.Typer(help="Model registry operations")
 maintenance_app = typer.Typer(help="Maintenance mode operations")
 rollback_app = typer.Typer(help="Version rollback planning")
+agent_profile_app = typer.Typer(help="Agent profile inspection")
+skill_app = typer.Typer(help="Model skill evaluation operations")
 app.add_typer(key_app, name="key")
 app.add_typer(config_app, name="config")
 app.add_typer(profile_app, name="profile")
@@ -27,6 +33,174 @@ app.add_typer(deployment_app, name="deployment")
 app.add_typer(model_app, name="model")
 app.add_typer(maintenance_app, name="maintenance")
 app.add_typer(rollback_app, name="rollback")
+app.add_typer(agent_profile_app, name="agent-profile")
+app.add_typer(skill_app, name="skill")
+
+
+def database_from_config(config_dir: Path) -> Database:
+    bundle = load_bundle(config_dir)
+    database_url = os.environ.get("LLM_PLATFORM_DATABASE_URL", bundle.platform.database.url)
+    return Database(database_url, echo=bundle.platform.database.echo)
+
+
+def json_default(value: object) -> str:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, SkillName):
+        return value.value
+    raise TypeError(f"cannot serialize {type(value).__name__}")
+
+
+async def record_base_skill(
+    config_dir: Path,
+    model_id: str,
+    skill: SkillName,
+    benchmark: str,
+    benchmark_version: str | None,
+    score: float,
+    samples: int,
+    confidence: float,
+) -> dict[str, object]:
+    database = database_from_config(config_dir)
+    try:
+        async with database.session() as session:
+            if await session.get(ModelRow, model_id) is None:
+                raise typer.BadParameter(f"model {model_id!r} is not registered")
+            evaluation, _ = await ModelSkillRepository(session).record(
+                model_id=model_id,
+                skill=skill,
+                benchmark=benchmark,
+                benchmark_version=benchmark_version,
+                score=score,
+                sample_count=samples,
+                confidence=confidence,
+            )
+            return asdict(evaluation)
+    finally:
+        await database.dispose()
+
+
+@skill_app.command("record-base")
+def skill_record_base(
+    model_id: str = typer.Option(..., "--model"),
+    skill: SkillName = typer.Option(..., "--skill"),
+    benchmark: str = typer.Option(..., "--benchmark"),
+    score: float = typer.Option(..., min=0.0, max=1.0),
+    samples: int = typer.Option(..., min=0),
+    confidence: float = typer.Option(..., min=0.0, max=1.0),
+    benchmark_version: str | None = typer.Option(None, "--benchmark-version"),
+    json_output: bool = typer.Option(False, "--json"),
+    config_dir: Path = typer.Option(Path("config"), "--config-dir"),
+) -> None:
+    result = asyncio.run(
+        record_base_skill(
+            config_dir,
+            model_id,
+            skill,
+            benchmark,
+            benchmark_version,
+            score,
+            samples,
+            confidence,
+        )
+    )
+    if json_output:
+        typer.echo(json.dumps(result, default=json_default, sort_keys=True))
+    else:
+        typer.echo(f"recorded global evaluation {result['id']}")
+
+
+async def skill_query(
+    config_dir: Path,
+    model_id: str,
+    agent_profile_id: str | None,
+    *,
+    profile: bool,
+) -> object:
+    database = database_from_config(config_dir)
+    try:
+        async with database.session() as session:
+            if (
+                agent_profile_id is not None
+                and await session.get(AgentProfileRow, agent_profile_id) is None
+            ):
+                raise typer.BadParameter(f"agent profile {agent_profile_id!r} was not found")
+            repository = ModelSkillRepository(session)
+            if profile:
+                return await repository.profile(model_id, agent_profile_id=agent_profile_id)
+            return [
+                asdict(item)
+                for item in await repository.history(
+                    model_id,
+                    agent_profile_id=agent_profile_id,
+                    global_only=agent_profile_id is None,
+                )
+            ]
+    finally:
+        await database.dispose()
+
+
+@skill_app.command("history")
+def skill_history(
+    model_id: str = typer.Option(..., "--model"),
+    agent_profile_id: str | None = typer.Option(None, "--agent-profile"),
+    json_output: bool = typer.Option(False, "--json"),
+    config_dir: Path = typer.Option(Path("config"), "--config-dir"),
+) -> None:
+    result = asyncio.run(skill_query(config_dir, model_id, agent_profile_id, profile=False))
+    if json_output:
+        typer.echo(json.dumps(result, default=json_default, sort_keys=True))
+        return
+    assert isinstance(result, list)
+    for row in result:
+        typer.echo(f"{row['id']} {row['skill']} {row['benchmark']} score={row['score']:.4f}")
+
+
+@skill_app.command("profile")
+def skill_profile(
+    model_id: str = typer.Option(..., "--model"),
+    agent_profile_id: str | None = typer.Option(None, "--agent-profile"),
+    json_output: bool = typer.Option(False, "--json"),
+    config_dir: Path = typer.Option(Path("config"), "--config-dir"),
+) -> None:
+    result = asyncio.run(skill_query(config_dir, model_id, agent_profile_id, profile=True))
+    if json_output:
+        typer.echo(json.dumps(result, default=json_default, sort_keys=True))
+        return
+    assert isinstance(result, dict)
+    for name, value in result.items():
+        score = value["score"]
+        typer.echo(
+            f"{name}: {'unavailable' if score is None else f'{score:.4f}'} ({value['source']})"
+        )
+
+
+async def list_profiles(config_dir: Path, user_id: str) -> list[dict[str, object]]:
+    database = database_from_config(config_dir)
+    try:
+        async with database.session() as session:
+            if await session.get(UserRow, user_id) is None:
+                raise typer.BadParameter(f"user {user_id!r} was not found")
+            return [
+                asdict(profile)
+                for profile in await AgentProfileRepository(session).list_for_user(user_id)
+            ]
+    finally:
+        await database.dispose()
+
+
+@agent_profile_app.command("list")
+def agent_profile_list(
+    user_id: str = typer.Option(..., "--user"),
+    json_output: bool = typer.Option(False, "--json"),
+    config_dir: Path = typer.Option(Path("config"), "--config-dir"),
+) -> None:
+    result = asyncio.run(list_profiles(config_dir, user_id))
+    if json_output:
+        typer.echo(json.dumps(result, default=json_default, sort_keys=True))
+        return
+    for profile in result:
+        typer.echo(f"{profile['id']} {profile['harness_name']}@{profile['harness_version']}")
 
 
 @app.command()

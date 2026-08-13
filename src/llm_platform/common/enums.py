@@ -7,6 +7,16 @@ class RuntimeKind(StrEnum):
     FAKE = "fake"
 
 
+class SkillName(StrEnum):
+    JAPANESE = "japanese"
+    JAPANESE_CODING = "japanese_coding"
+    CODING = "coding"
+    SOFTWARE_ENGINEERING = "software_engineering"
+    TOOL_USE = "tool_use"
+    INSTRUCTION_FOLLOWING = "instruction_following"
+    AGENTIC = "agentic"
+
+
 class BackendState(StrEnum):
     STOPPED = "stopped"
     ALLOCATING = "allocating"

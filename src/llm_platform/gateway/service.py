@@ -1,15 +1,23 @@
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from llm_platform.auth.keys import ApiPrincipal
 from llm_platform.common.enums import BackendState
 from llm_platform.common.errors import AuthorizationError, PlatformError, RouteUnavailableError
 from llm_platform.config.schema import ModelConfig
+from llm_platform.gateway.schemas import AgentProfileCreate, SkillEvaluationCreate
+from llm_platform.persistence.skills import (
+    AgentProfile,
+    AgentProfileRepository,
+    ModelSkillRepository,
+)
 from llm_platform.routing.router import RouteRequest, RouteResult, RuleRouter, parse_selector
 from llm_platform.runtimes.base import RuntimeAdapter, RuntimeInstance
 from llm_platform.telemetry.logging import safe_request_log
@@ -106,6 +114,7 @@ class GatewayService:
         request_timeout_seconds: float = 600,
         config_revision: str = "development",
         control_plane: "ControlPlane | None" = None,
+        database_sessions: Callable[[], AsyncSession] | None = None,
     ) -> None:
         self.router = router
         self.registry = registry
@@ -113,6 +122,7 @@ class GatewayService:
         self.request_timeout_seconds = request_timeout_seconds
         self.config_revision = config_revision
         self.control_plane = control_plane
+        self.database_sessions = database_sessions
         self.limiter = ConcurrencyLimiter()
         self.route_history: dict[str, dict[str, Any]] = {}
 
@@ -138,6 +148,114 @@ class GatewayService:
             for model in self.models
             if model.enabled and model.model_id in principal.model_permissions
         ]
+
+    async def create_agent_profile(
+        self, principal: ApiPrincipal, request: AgentProfileCreate
+    ) -> AgentProfile:
+        principal.require_scope("inference")
+        async with self._database_session() as session:
+            return await AgentProfileRepository(session).create(
+                user_id=principal.user_id,
+                harness_name=request.harness_name,
+                harness_version=request.harness_version,
+                config_hash=request.config_hash,
+                toolset_hash=request.toolset_hash,
+                metadata=request.metadata,
+            )
+
+    async def list_agent_profiles(self, principal: ApiPrincipal) -> list[AgentProfile]:
+        principal.require_scope("inference")
+        async with self._database_session() as session:
+            return await AgentProfileRepository(session).list_for_user(principal.user_id)
+
+    async def get_agent_profile(self, principal: ApiPrincipal, profile_id: str) -> AgentProfile:
+        principal.require_scope("inference")
+        async with self._database_session() as session:
+            return await self._owned_profile(session, principal, profile_id)
+
+    async def submit_skill_evaluation(
+        self,
+        principal: ApiPrincipal,
+        request: SkillEvaluationCreate,
+        idempotency_key: str | None,
+    ) -> tuple[dict[str, Any], bool]:
+        principal.require_scope("inference")
+        if request.model_id not in principal.model_permissions:
+            raise AuthorizationError("model is not permitted")
+        if idempotency_key is not None and not 1 <= len(idempotency_key) <= 128:
+            raise PlatformError(
+                "invalid_idempotency_key", "Idempotency-Key must contain 1 to 128 characters", 400
+            )
+        async with self._database_session() as session:
+            await self._owned_profile(session, principal, request.agent_profile_id)
+            try:
+                evaluation, created = await ModelSkillRepository(session).record(
+                    model_id=request.model_id,
+                    agent_profile_id=request.agent_profile_id,
+                    skill=request.skill,
+                    benchmark=request.benchmark,
+                    benchmark_version=request.benchmark_version,
+                    score=request.score,
+                    sample_count=request.sample_count,
+                    confidence=request.confidence,
+                    raw_metrics=request.raw_metrics,
+                    measured_at=request.measured_at,
+                    idempotency_key=idempotency_key,
+                )
+            except ValueError as exc:
+                raise PlatformError("invalid_evaluation", str(exc), 409) from exc
+        return {
+            "id": evaluation.id,
+            "model_id": evaluation.model_id,
+            "agent_profile_id": evaluation.agent_profile_id,
+            "skill": evaluation.skill.value,
+            "created": created,
+        }, created
+
+    async def model_capabilities(
+        self, principal: ApiPrincipal, agent_profile_id: str | None
+    ) -> list[dict[str, Any]]:
+        principal.require_scope("inference")
+        visible = [model for model in self.models if model.model_id in principal.model_permissions]
+        async with self._database_session() as session:
+            if agent_profile_id is not None:
+                await self._owned_profile(session, principal, agent_profile_id)
+            repository = ModelSkillRepository(session)
+            profiles = {
+                model.model_id: await repository.profile(
+                    model.model_id, agent_profile_id=agent_profile_id
+                )
+                for model in visible
+            }
+        return [
+            {
+                "id": model.model_id,
+                "display_name": model.display_name,
+                "family": model.family,
+                "capabilities": model.capabilities.model_dump(),
+                "skills": profiles[model.model_id],
+                "tags": sorted(model.tags),
+                "known_constraints": model.known_constraints,
+                "availability": {"enabled": model.enabled},
+            }
+            for model in visible
+        ]
+
+    def _database_session(self) -> AsyncSession:
+        if self.database_sessions is None:
+            raise PlatformError("database_unavailable", "database is not configured", 503, True)
+        return self.database_sessions()
+
+    @staticmethod
+    async def _owned_profile(
+        session: AsyncSession, principal: ApiPrincipal, profile_id: str
+    ) -> AgentProfile:
+        profile = await AgentProfileRepository(session).get(profile_id)
+        if profile is None:
+            raise PlatformError("agent_profile_not_found", "agent profile was not found", 404)
+        if profile.user_id != principal.user_id:
+            raise AuthorizationError("agent profile belongs to another user")
+        return profile
 
     def route(
         self,

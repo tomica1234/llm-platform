@@ -47,6 +47,7 @@ def build_app(config_dir: Path) -> FastAPI:
     )
     database_url = os.environ.get("LLM_PLATFORM_DATABASE_URL", bundle.platform.database.url)
     database = Database(database_url, echo=bundle.platform.database.echo)
+    service.database_sessions = database.sessions
     enabled = [item for item in bundle.deployments.deployments if item.enabled]
     adapters: dict[str, RuntimeAdapter] = {}
     for deployment in enabled:

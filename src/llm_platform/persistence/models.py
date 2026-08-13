@@ -1,7 +1,18 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -101,6 +112,53 @@ class ModelRow(Base):
     capabilities: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     license: Mapped[str] = mapped_column(String(255))
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class AgentProfileRow(Base):
+    __tablename__ = "agent_profiles"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    harness_name: Mapped[str] = mapped_column(String(128))
+    harness_version: Mapped[str] = mapped_column(String(128))
+    config_hash: Mapped[str] = mapped_column(String(64))
+    toolset_hash: Mapped[str] = mapped_column(String(64))
+    profile_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ModelSkillEvaluationRow(Base):
+    __tablename__ = "model_skill_evaluations"
+    __table_args__ = (
+        CheckConstraint("score >= 0.0 AND score <= 1.0", name="ck_skill_score_range"),
+        CheckConstraint("sample_count >= 0", name="ck_skill_sample_count"),
+        CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0", name="ck_skill_confidence_range"
+        ),
+        UniqueConstraint(
+            "agent_profile_id",
+            "idempotency_key",
+            name="uq_skill_evaluation_profile_idempotency",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    model_id: Mapped[str] = mapped_column(ForeignKey("models.id"), index=True)
+    agent_profile_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_profiles.id"), index=True
+    )
+    skill: Mapped[str] = mapped_column(String(64), index=True)
+    benchmark: Mapped[str] = mapped_column(String(128))
+    benchmark_version: Mapped[str | None] = mapped_column(String(128))
+    score: Mapped[float] = mapped_column(Float)
+    sample_count: Mapped[int] = mapped_column(Integer)
+    confidence: Mapped[float] = mapped_column(Float)
+    raw_metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128))
+    submission_hash: Mapped[str | None] = mapped_column(String(64))
 
 
 class ModelArtifactRow(Base):

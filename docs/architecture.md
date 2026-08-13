@@ -96,3 +96,30 @@ The CLI Slurm adapter submits backend jobs as `svc-llm`; only the job invokes
 `/opt/llm-platform/app/current/bin/llm-backend`. The launcher then execs the separately
 versioned llama.cpp or vLLM executable. No systemd backend unit and no control-plane
 local process supervisor is used in production.
+
+## Model capability dimensions
+
+Capability discovery keeps four dimensions separate:
+
+1. **Global model skills** are benchmark evidence for intrinsic/base model quality.
+   They have no AgentProfile and are written only through an administrative path.
+2. **AgentProfile effective skills** measure a model under one user's exact harness
+   name/version plus configuration and toolset hashes. Profiles are user-owned;
+   evidence is never shared or aggregated across profiles or users.
+3. **Deployment performance** remains runtime and resource evidence such as tokens
+   per second, startup duration, VRAM, RAM, runtime implementation, and GPU count.
+4. **Runtime state** remains observed loaded/healthy state, queue state, and available
+   GPU capacity.
+
+`model_skill_evaluations` is append-only. For each skill, capability discovery uses
+evidence for the requested, authenticated-user-owned AgentProfile when present, then
+falls back only to global evidence. It never considers another profile. The aggregate
+score uses `weight = confidence * sample_count`; the score is the weighted mean. The
+reported confidence is sample-count-weighted, sample count is summed, and benchmark
+names, evidence count, and latest measurement time are returned. If all score weights
+are zero, the score remains unavailable rather than inventing evidence.
+
+The capability API reads this evidence for every request, so newly recorded results
+become visible without restarting the Gateway. A later routing change may combine
+these dimensions. This change does not feed skills into the existing
+fast/balanced/strong/max router.

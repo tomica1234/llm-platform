@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -6,11 +7,12 @@ import pytest
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
+from typer.testing import CliRunner
 
-from llm_platform.admin_cli.main import provision_key
+from llm_platform.admin_cli.main import app, provision_key
 from llm_platform.auth.keys import authenticate, hash_api_key, key_prefix
 from llm_platform.auth.sqlalchemy_store import SqlAlchemyKeyStore
-from llm_platform.persistence.models import ApiKeyRow, Base, UserRow
+from llm_platform.persistence.models import AgentProfileRow, ApiKeyRow, Base, ModelRow, UserRow
 
 
 def configured_bundle(username: str) -> Any:
@@ -173,3 +175,77 @@ async def test_failed_provision_rolls_back_flushed_user_and_api_key(
         keys = (await session.scalars(select(ApiKeyRow))).all()
     assert [key.id for key in keys] == ["key-collision"]
     await database.dispose()
+
+
+def test_skill_and_agent_profile_cli_json_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_path = tmp_path / "skills.db"
+    database = foreign_key_database(database_path)
+    with database.session_factory() as session:
+        session.add(
+            UserRow(
+                id="shunta",
+                linux_username="shunta",
+                display_name="Shunta",
+                model_permissions=["qwen"],
+            )
+        )
+        session.add(
+            ModelRow(
+                id="qwen",
+                family="qwen",
+                revision="test",
+                capabilities={},
+                license="test",
+                enabled=True,
+            )
+        )
+        session.flush()
+        session.add(
+            AgentProfileRow(
+                id="ap-cli",
+                user_id="shunta",
+                harness_name="agent",
+                harness_version="1",
+                config_hash="a" * 64,
+                toolset_hash="b" * 64,
+                profile_metadata={},
+            )
+        )
+        session.commit()
+    monkeypatch.setenv("LLM_PLATFORM_DATABASE_URL", f"sqlite+aiosqlite:///{database_path}")
+    runner = CliRunner()
+    recorded = runner.invoke(
+        app,
+        [
+            "skill",
+            "record-base",
+            "--model",
+            "qwen",
+            "--skill",
+            "coding",
+            "--benchmark",
+            "livecodebench",
+            "--score",
+            "0.7",
+            "--samples",
+            "400",
+            "--confidence",
+            "0.95",
+            "--json",
+        ],
+    )
+    profile = runner.invoke(app, ["skill", "profile", "--model", "qwen", "--json"])
+    history = runner.invoke(app, ["skill", "history", "--model", "qwen", "--json"])
+    profiles = runner.invoke(app, ["agent-profile", "list", "--user", "shunta", "--json"])
+
+    assert recorded.exit_code == 0, recorded.output
+    assert json.loads(recorded.output)["agent_profile_id"] is None
+    assert profile.exit_code == 0, profile.output
+    assert json.loads(profile.output)["coding"]["score"] == pytest.approx(0.7)
+    assert history.exit_code == 0, history.output
+    assert len(json.loads(history.output)) == 1
+    assert profiles.exit_code == 0, profiles.output
+    assert json.loads(profiles.output)[0]["id"] == "ap-cli"
+    database.engine.dispose()

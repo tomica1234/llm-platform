@@ -254,6 +254,27 @@ Earlier baseline evidence:
 
 ## Known limitations and blockers
 
+## User-scoped dynamic AgentProfile skill evidence (2026-08-13)
+
+- Added Alembic revision `0003`, creating user-owned `agent_profiles` and append-only
+  `model_skill_evaluations` without altering existing tables.
+- Added authenticated AgentProfile create/list/get, user-scoped evaluation submission
+  with profile ownership/model permission/idempotency enforcement, and dynamic
+  `/v1/model-capabilities` reads. Existing RuleRouter policies are unchanged.
+- Focused persistence, dynamic Gateway/isolation, CLI, and temporary SQLite migration
+  suite — PASS: 8 tests.
+- `make check` — PASS:
+  - Ruff format/check: PASS (115 files).
+  - strict mypy: PASS (61 source files).
+  - unit/non-integration selection: 86 passed, 34 deselected.
+  - integration: 24 passed, 96 deselected.
+  - security: 6 passed, 114 deselected; secret-pattern check PASS.
+  - aggregate non-hardware: 116 passed, 4 deselected; branch coverage 78.43%.
+- `git diff --check` — PASS. No GPU, Slurm, runtime, or PostgreSQL execution was
+  performed or claimed; PostgreSQL compatibility is supplied by portable SQLAlchemy
+  types and constraints and remains to be exercised against a production-equivalent
+  PostgreSQL instance.
+
 The production Definition of Done is not satisfied. AT-001–AT-025 require target-host
 execution; several also require remaining Phase 3/4 integration described above.
 Example models/deployments are intentionally disabled and unbenchmarked. No runtime
